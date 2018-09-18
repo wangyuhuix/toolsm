@@ -103,7 +103,7 @@ def print_time(name=None,reset=False):
 
 
 
-def _get_files_dirs(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='/', sort=None, suffix=None):
+def _get_files_dirs(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='', sort=None, suffix=None):
     if suffix is not None:
         assert suffix[0] == '.'
         filter_suffix = lambda x: x.endswith(suffix)
@@ -114,7 +114,7 @@ def _get_files_dirs(path_root='', path_rel='', filter_=None, only_sub=True, type
             filter_ = filter_suffix
     return _get_files_dirs_entity(path_root, path_rel, filter_, only_sub, type, dir_end, sort)
 
-def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='/', sort=None, suffix=None):
+def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='', sort=None, suffix=None):
     files = []
     dirs = []
     lists = os.listdir(os.path.join(path_root, path_rel))
@@ -151,7 +151,7 @@ def get_files(path_root='', path_rel='', filter_=None, only_sub=True, sort=None,
     return _get_files_dirs(path_root,path_rel,filter_,only_sub,'file', sort=sort, suffix=suffix)
 
 # filter: a function return true or false
-def get_dirs(path_root='', path_rel='', filter_=None, only_sub=True, dir_end='/', sort=None, suffix=None):
+def get_dirs(path_root='', path_rel='', filter_=None, only_sub=True, dir_end='', sort=None, suffix=None):
     return _get_files_dirs(path_root,path_rel,filter_,only_sub,'dir', dir_end=dir_end, sort=sort, suffix=suffix)
 
 
@@ -236,7 +236,56 @@ def time_now_str():
 def time_now_str_filename():
     return time.strftime('%m_%d_%H_%M_%S', time.localtime())
 
+
+import shutil
+import re
+def check_safe_path(path, confirm=True, depth=4, name='Modify'):
+    # print(f"^({os.environ['HOME']}|/media)(/[^/]+){{3,}}")
+    # exit()
+    assert depth >= 4
+    assert re.match(
+        ''.join([ "^(", os.environ['HOME'], "|/media)(/[^/]+){",str(depth-1),",}" ])
+        ,path), f'At least operate {depth}-th depth sub-directory!'
+    if confirm:
+        contents = ''
+        if not os.path.isfile( path ):
+            dirs = get_dirs(path, dir_end='/')
+            files = get_files( path )
+            for content in dirs+files:
+                contents += f'\n       {content}'
+        print(f"{name} path '{path}'! It contains {contents}\n (y or n)?", end='')
+        cmd = input()
+        if cmd == 'y':
+            return True
+        else:
+            return False
+    else:
+        return True
+
+def safe_move( src, dst, confirm=True ):
+    if check_safe_path(src, confirm, name='Move'):
+        shutil.move(src, dst)
+        print(f"Moved '{src}' \nto '{dst}'")
+        return True
+    print(f"Cancel moving file '{src}'")
+    return False
+
+def safe_delete(path, confirm=True):
+    if check_safe_path( path, confirm, name='Delete' ):
+        print(f"Deleted '{path}'")
+        shutil.rmtree( path )
+        return True
+    print('Cancel rm file')
+    return False
+
+
+
+
 if __name__ == '__main__':
+    # print(os.environ['HOME'])
+    # safe_move('/root/a/b/c/','/root/b/')
+    safe_rm('/media/d/t/tttt')
+    exit()
     files = get_files('/media/d/e/python/utxm', suffix='.py', filter_=lambda x: 'e' in x )
     print(files)
     exit()
