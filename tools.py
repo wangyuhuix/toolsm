@@ -13,10 +13,18 @@ class Namespace(object):
         return self.__dict__
 
 def mkdir( dir ):
+    # TODO: mkdir reccurence
     if not os.path.exists(dir):
         os.mkdir(dir)
         return True
     return False
+
+def pcname():
+    return os.uname().nodename
+
+def ispc(name):
+    return pcname().__contains__(name)
+
 
 def FlagFromFile(filepath):
     filepath += '.cmd'
@@ -100,7 +108,6 @@ def print_time(name=None,reset=False):
         str += f'time:{timer() - __print_time_last:f} s'
         print(str)
     __print_time_last = timer()
-
 
 
 def _get_files_dirs(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='', sort=None, suffix=None):
@@ -200,9 +207,16 @@ def load_config(filename):
         return args
 
 import pickle
-def load_vars(filename):
-    with open(filename,'rb') as f:
-        return pickle.load( f )
+from warnings import warn
+def load_vars(filename, catchError=False):
+    try:
+        with open(filename,'rb') as f:
+            return pickle.load( f )
+    except Exception as e:
+        if catchError:
+            warn( f'Load Error! {filename}' )
+            return None
+        raise e
 
 
 def save_vars(filename, *vs, disp=False):
