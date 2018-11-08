@@ -125,7 +125,7 @@ def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, only_sub=Tru
     files = []
     dirs = []
     lists = os.listdir(os.path.join(path_root, path_rel))
-    if filter_ : lists = list( filter(filter_, lists) )
+
     for item in lists:
         item_absolute = os.path.join(path_root, path_rel, item)
         item_rel = os.path.join(path_rel, item)
@@ -133,32 +133,74 @@ def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, only_sub=Tru
             files.append(item_rel)
         elif os.path.isdir(item_absolute):
             dirs.append(item_rel+dir_end)
-
+    # print(dirs)
+    if filter_:
+        files = list(filter(filter_, files))
+        dirs_search = copy.copy(dirs)
+        dirs = list(filter(filter_, dirs))
+    else:
+        dirs_search = copy.copy(dirs)
 
     if type =='file':
         #if filter_: files = list(filter( filter_, files )) #fnmatch.filter(files, filter_)
         if not only_sub:
-            for dir in dirs:
-                files += _get_files_dirs_entity(path_root, os.path.join(path_rel, dir), filter_, only_sub, 'file')
+            for dir in dirs_search:
+                files += _get_files_dirs_entity(path_root, dir, filter_, only_sub, 'file')
         obj_return = files
     elif type == 'dir':
         #if filter_: dirs = list(filter( filter_, dirs ))#fnmatch.filter(dirs, filter_)
         if not only_sub:
-            for dir in dirs:
-                dirs += _get_files_dirs_entity(path_root, os.path.join(path_rel, dir), filter_, only_sub, 'dir', dir_end)
+            for dir in dirs_search:
+                # print(path_root, ' ', path_rel, ' ', dir)
+                dirs += _get_files_dirs_entity(path_root, dir, filter_, only_sub, 'dir', dir_end)
         obj_return = dirs
     else:
         NotImplementedError
+
     if sort is not None:
         obj_return.sort(reverse=sort)
     return obj_return
 
-# filter: a function return true or false
 def get_files(path_root='', path_rel='', filter_=None, only_sub=True, sort=None, suffix=None):
+    '''
+    :param path_root:
+    :type path_root:
+    :param path_rel:
+    :type path_rel:
+    :param filter_:a function returns true or false. e.g. lamabda filename: filename.__contains__('xxx')
+    :type filter_:
+    :param only_sub:
+    :type only_sub:
+    :param sort:
+    :type sort:
+    :param suffix:
+    :type suffix:
+    :return:
+    :rtype:
+    '''
     return _get_files_dirs(path_root,path_rel,filter_,only_sub,'file', sort=sort, suffix=suffix)
 
-# filter: a function return true or false
+
 def get_dirs(path_root='', path_rel='', filter_=None, only_sub=True, dir_end='', sort=None, suffix=None):
+    '''
+
+    :param path_root:
+    :type path_root:
+    :param path_rel:
+    :type path_rel:
+    :param filter_:a function returns true or false. e.g. lamabda filename: filename.__contains__('xxx')
+    :type filter_:
+    :param only_sub:
+    :type only_sub:
+    :param dir_end:
+    :type dir_end:
+    :param sort:
+    :type sort:
+    :param suffix:
+    :type suffix:
+    :return:
+    :rtype:
+    '''
     return _get_files_dirs(path_root,path_rel,filter_,only_sub,'dir', dir_end=dir_end, sort=sort, suffix=suffix)
 
 
@@ -296,9 +338,11 @@ def safe_delete(path, confirm=True):
 
 
 if __name__ == '__main__':
+    dirs = get_dirs('/media/d/tt/b', only_sub=False)
+    print(dirs)
     # print(os.environ['HOME'])
     # safe_move('/root/a/b/c/','/root/b/')
-    safe_rm('/media/d/t/tttt')
+    # safe_rm('/media/d/t/tttt')
     exit()
     files = get_files('/media/d/e/python/utxm', suffix='.py', filter_=lambda x: 'e' in x )
     print(files)
