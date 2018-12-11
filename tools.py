@@ -284,7 +284,7 @@ def get_ip(name):
         return ip
     else:
         return None
-
+import time
 
 def time_now_str():
     return time.strftime('%m/%d|%H:%M:%S', time.localtime())
