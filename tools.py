@@ -25,6 +25,18 @@ def pcname():
 def ispc(name):
     return pcname().__contains__(name)
 
+def get_savepathroot():
+    path_roots = {
+        'xiaoming': '/media/d/e/et/baselines',
+        'hugo': '/home/hugo/Desktop/wxm',
+    }
+    for key in path_roots:
+        if ispc(key):
+            path_root = path_roots[key]
+            break
+    else:
+        path_root = f"{os.environ['HOME']}/xm/et"  # TODO
+    return path_root
 
 def FlagFromFile(filepath):
     filepath += '.cmd'

@@ -1,4 +1,5 @@
 import fcntl
+import tools
 
 
 import os
@@ -10,7 +11,9 @@ class FileLocker:
 
     def acquire(self):
         self.file =  open(self.__filename, 'w+')
+        tools.print_refresh(f'acquire {self.__filename}')
         fcntl.flock(self.file.fileno(), fcntl.LOCK_EX)
+        tools.print_refresh('')
 
     def release(self):
         fcntl.flock(self.file.fileno(), fcntl.LOCK_UN)
