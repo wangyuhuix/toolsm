@@ -4,6 +4,10 @@ import fnmatch
 import copy
 import sys
 import os
+import numpy as np
+from contextlib import contextmanager
+import time
+
 
 class Namespace(object):
     def __init__(self, kw):
@@ -56,70 +60,56 @@ def print_refresh(*s):
         result += str(i)
     sys.stdout.write(result)
     sys.stdout.flush()
-'''
-def JSONFile(filepath, *keys):
-    value_update = None
-    value_default = None
-    filepath += '.json'
-    if not os.path.exists(filepath):
-        print('re')
-        with open(filepath, 'w') as f:
-            json.dump( {},f )
-    #-- return value
-    value = None
-    with open(filepath, 'r') as f:
-        j = json.load( f )
-    if keys:
-        value = []
-        fill_default = False
-        for key in keys:
-            if key not in j.keys():#--initialize
-                fill_default = True
-            value.append(j[key])
-        value = tuple(value)
-        if len(value) == 1:
-            value = value[0]
 
-        #--- fill default
-        if fill_default:
-            with open(filepath, 'w') as f:
-                json.dump( j, f )
-    else:
-        value = j
-    #-- write value_update
-    if value_update is not None:
-        if len(keys) == 0:#whole json
-            assert isinstance(value_update, dict)
-            with open(filepath, 'w') as f:
-                json.dump(value_update, f)
-        elif len(keys)==1:#specific keys
-            key = keys[0]
-            if j[key] != value_update:
-                j_new = copy.deepcopy(j)
-                j_new[key] = value_update
-                with open(filepath, 'w') as f:
-                    json.dump(j_new, f)
-        else:
-            raise Exception('Not supported for keys update. Please use json update directly')
-    return  value
-'''
-# import time
-from timeit import default_timer as timer
-def reset_time():
-    print_time(reset=True)
-__print_time_last = None
-def print_time(name=None,reset=False):
-    global __print_time_last
-    if __print_time_last is None:
-        __print_time_last = timer()
-    if not reset:
-        if name is not None:
-            str = f'name:{name}'
-        else:
-            str = ''
-        str += f'time:{timer() - __print_time_last:f} s'
-        print(str)
-    __print_time_last = timer()
+
+color2num = dict(
+    gray=30,
+    red=31,
+    green=32,
+    yellow=33,
+    blue=34,
+    magenta=35,
+    cyan=36,
+    white=37,
+    crimson=38
+)
+def colorize(string, color, bold=False, highlight=False):
+    attr = []
+    num = color2num[color]
+    if highlight: num += 10
+    attr.append(str(num))
+    if bold: attr.append('1')
+    return '\x1b[%sm%s\x1b[0m' % (';'.join(attr), string)
+
+@contextmanager
+def timed(msg):
+    color = 'magenta'
+    print(colorize(msg + '...', color=color), end='')
+    tstart = time.time()
+    yield
+    print(colorize(" done in %.3f seconds" % (time.time() - tstart), color=color))
+
+
+def arr2meshgrid(arr, dim):
+    '''
+    把一个单独的arr转换成维度为dim的meshgrid
+    Example: ARGS: arr=[1,2], dim=2 . RETURN: [1,1],[1,2],[2,1],[2,2]
+    Example: ARGS: arr=[1,2,3], dim=3 . RETURN: [1,1,1],[1,1,2],[1,1,3]...
+    '''
+    meshgrids = [arr for i in range(dim)]
+    return multiarr2meshgrid(meshgrids)
+
+
+def multiarr2meshgrid(arrs):
+    '''
+    把多个arr转换成维度为len(arrs)的meshgird
+    Example: ARGS: arrs=([1,2],[8,9]) . RETURN: [1,8],[1,9],[2,8],[2,9]
+    '''
+    arr = np.meshgrid(*arrs)
+    arr = [i.reshape(-1, 1) for i in arr]
+    arr = np.concatenate(arr, axis=1)
+    return arr
+
 
 
 def _get_files_dirs(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='', sort=None, suffix=None):
@@ -216,50 +206,6 @@ def get_dirs(path_root='', path_rel='', filter_=None, only_sub=True, dir_end='',
     return _get_files_dirs(path_root,path_rel,filter_,only_sub,'dir', dir_end=dir_end, sort=sort, suffix=suffix)
 
 
-import demjson
-
-def load_args(dir_root, dir_sub='', name_trial='', file_name='arg', args_default=None, return_args_str=False):
-    '''
-
-    '''
-    if dir_sub != '':
-        if name_trial != '':
-            name_trial = '_' + name_trial
-        path_logger = os.path.join(dir_root, dir_sub + name_trial + '/')
-    else:
-        if name_trial != '':
-            path_logger = os.path.join(dir_root, dir_sub + name_trial + '/')
-        else:
-            path_logger = dir_root
-
-    if not os.path.exists(path_logger):
-        os.mkdir(path_logger)
-    file_arg = os.path.join(path_logger, file_name +'.json')
-    if not os.path.exists(file_arg):
-        if args_default is not None:
-            args = args_default
-            args = args.replace('=', ':')
-            with open(file_arg, 'w') as f:
-                f.write(args)
-        print('Please initialize args in ' + file_arg)
-        #exit()#临时
-    with open(file_arg, 'r') as f:
-        args_str = f.read()
-        args = demjson.decode(args_str)
-        args = Namespace(args)
-    if return_args_str:
-        return args,path_logger,file_arg,args_str
-    else:
-        return args, path_logger, file_arg
-
-
-def load_config(filename):
-    with open(filename, 'r') as f:
-        args_str = f.read()
-        args = demjson.decode(args_str)
-        args = Namespace(args)
-        return args
-
 import pickle
 from warnings import warn
 def load_vars(filename, catchError=False):
@@ -347,8 +293,6 @@ def safe_delete(path, confirm=True):
     return False
 
 
-
-
 if __name__ == '__main__':
     dirs = get_dirs('/media/d/tt/b', only_sub=False)
     print(dirs)
@@ -365,5 +309,117 @@ if __name__ == '__main__':
     #print(get_files('/media/d/e/baselines/ppo1/result_Run',filter='*.meta'))
 
 
+# ------------------------------ discard
 
-#---plt
+import demjson
+
+def load_args(dir_root, dir_sub='', name_trial='', file_name='arg', args_default=None, return_args_str=False):
+    '''
+
+    '''
+    if dir_sub != '':
+        if name_trial != '':
+            name_trial = '_' + name_trial
+        path_logger = os.path.join(dir_root, dir_sub + name_trial + '/')
+    else:
+        if name_trial != '':
+            path_logger = os.path.join(dir_root, dir_sub + name_trial + '/')
+        else:
+            path_logger = dir_root
+
+    if not os.path.exists(path_logger):
+        os.mkdir(path_logger)
+    file_arg = os.path.join(path_logger, file_name +'.json')
+    if not os.path.exists(file_arg):
+        if args_default is not None:
+            args = args_default
+            args = args.replace('=', ':')
+            with open(file_arg, 'w') as f:
+                f.write(args)
+        print('Please initialize args in ' + file_arg)
+        #exit()#临时
+    with open(file_arg, 'r') as f:
+        args_str = f.read()
+        args = demjson.decode(args_str)
+        args = Namespace(args)
+    if return_args_str:
+        return args,path_logger,file_arg,args_str
+    else:
+        return args, path_logger, file_arg
+
+
+def load_config(filename):
+    with open(filename, 'r') as f:
+        args_str = f.read()
+        args = demjson.decode(args_str)
+        args = Namespace(args)
+        return args
+
+
+
+'''
+def JSONFile(filepath, *keys):
+    value_update = None
+    value_default = None
+    filepath += '.json'
+    if not os.path.exists(filepath):
+        print('re')
+        with open(filepath, 'w') as f:
+            json.dump( {},f )
+    #-- return value
+    value = None
+    with open(filepath, 'r') as f:
+        j = json.load( f )
+    if keys:
+        value = []
+        fill_default = False
+        for key in keys:
+            if key not in j.keys():#--initialize
+                fill_default = True
+            value.append(j[key])
+        value = tuple(value)
+        if len(value) == 1:
+            value = value[0]
+
+        #--- fill default
+        if fill_default:
+            with open(filepath, 'w') as f:
+                json.dump( j, f )
+    else:
+        value = j
+    #-- write value_update
+    if value_update is not None:
+        if len(keys) == 0:#whole json
+            assert isinstance(value_update, dict)
+            with open(filepath, 'w') as f:
+                json.dump(value_update, f)
+        elif len(keys)==1:#specific keys
+            key = keys[0]
+            if j[key] != value_update:
+                j_new = copy.deepcopy(j)
+                j_new[key] = value_update
+                with open(filepath, 'w') as f:
+                    json.dump(j_new, f)
+        else:
+            raise Exception('Not supported for keys update. Please use json update directly')
+    return  value
+'''
+'''
+import time
+from timeit import default_timer as timer
+def reset_time():
+    print_time(reset=True)
+__print_time_last = None
+def print_time(name=None,reset=False):
+    global __print_time_last
+    if __print_time_last is None:
+        __print_time_last = timer()
+    if not reset:
+        if name is not None:
+            str = f'name:{name}'
+        else:
+            str = ''
+        str += f'time:{timer() - __print_time_last:f} s'
+        print(str)
+    __print_time_last = timer()
+'''
