@@ -82,13 +82,20 @@ def colorize(string, color, bold=False, highlight=False):
     return '\x1b[%sm%s\x1b[0m' % (';'.join(attr), string)
 
 @contextmanager
-def timed(msg):
+def timed(msg, print_atend=True):
     color = 'magenta'
-    print(colorize(msg + '...', color=color), end='')
+    if print_atend:
+        print(colorize(msg + '...', color=color), end='')
     tstart = time.time()
     yield
-    print(colorize(" done in %.3f seconds" % (time.time() - tstart), color=color))
+    if print_atend:#如果已经输出begin了,就不要再输出一遍了
+        msg = ''
+    msg += " done in %.3f seconds" % (time.time() - tstart)
+    print(colorize(msg, color=color))
 
+# with timed('a', True):
+#     x = 1
+# exit()
 
 def arr2meshgrid(arr, dim):
     '''
