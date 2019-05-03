@@ -17,9 +17,15 @@ class Namespace(object):
         return self.__dict__
 
 def mkdir( dir ):
-    # TODO: mkdir reccurence
     if not os.path.exists(dir):
         os.mkdir(dir)
+        return True
+    return False
+
+
+def makedirs( dir ):
+    if not os.path.exists(dir):
+        os.makedirs(dir)
         return True
     return False
 
