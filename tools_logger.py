@@ -36,7 +36,7 @@ def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], name_suf
     dirs_full = dict()
     for d_mid in dirs_mid:
         assert d_mid
-        tools.makedirs( f'{root_dir}/{d_mid}' )
+        tools.makedirs( f'{root_dir}/{d_mid}' )#TODO:多进程的时候会报错
         dirs_full[d_mid] = f'{root_dir}/{d_mid}/{sub_dir}'
         setattr( args, f'{d_mid}_dir', dirs_full[d_mid] )
 

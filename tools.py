@@ -25,7 +25,10 @@ def mkdir( dir ):
 
 def makedirs( dir ):
     if not os.path.exists(dir):
-        os.makedirs(dir)
+        try:
+            os.makedirs(dir)
+        except Exception as e:
+            print( e )
         return True
     return False
 
@@ -87,21 +90,27 @@ def colorize(string, color, bold=False, highlight=False):
     if bold: attr.append('1')
     return '\x1b[%sm%s\x1b[0m' % (';'.join(attr), string)
 
+
+
 @contextmanager
-def timed(msg, print_atend=True):
+def timed(msg, print_atend=True, stdout=print):
     color = 'magenta'
     if print_atend:
-        print(colorize(msg + '...', color=color), end='')
+        msg += '...'
+        if stdout is None:
+            print(colorize(msg, color=color), end='')
+        else:
+            stdout(msg)
     tstart = time.time()
     yield
-    if print_atend:#如果已经输出begin了,就不要再输出一遍了
+    if not print_atend:#如果已经输出begin了,就不要再输出一遍了
         msg = ''
     msg += " done in %.3f seconds" % (time.time() - tstart)
-    print(colorize(msg, color=color))
+    if stdout is None:
+        print(colorize(msg, color=color))
+    else:
+        stdout( msg )
 
-# with timed('a', True):
-#     x = 1
-# exit()
 
 def arr2meshgrid(arr, dim):
     '''
