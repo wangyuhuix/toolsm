@@ -95,19 +95,19 @@ def colorize(string, color, bold=False, highlight=False):
 @contextmanager
 def timed(msg, print_atend=True, stdout=print):
     color = 'magenta'
-    if print_atend:
+    if not print_atend:
         msg += '...'
-        if stdout is None:
-            print(colorize(msg, color=color), end='')
+        if stdout == print:
+            stdout(colorize(msg, color=color), end='')
         else:
             stdout(msg)
     tstart = time.time()
     yield
     if not print_atend:#如果已经输出begin了,就不要再输出一遍了
         msg = ''
-    msg += " done in %.3f seconds" % (time.time() - tstart)
-    if stdout is None:
-        print(colorize(msg, color=color))
+    msg += " done in %.3f seconds" % (time.time() - tstart) #TODO 转换成小时
+    if stdout == print:
+        stdout(colorize(msg, color=color))
     else:
         stdout( msg )
 
