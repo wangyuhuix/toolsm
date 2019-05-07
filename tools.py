@@ -260,7 +260,7 @@ def load_json(filename):
     return obj
 
 def save_s(filename, s):
-    with open(filename, 'w') as f:
+    with open(filename, 'a') as f:
         f.write(s)
 
 def load_s(filename):
