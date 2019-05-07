@@ -250,6 +250,25 @@ def save_vars(filename, *vs, disp=False):
         else:
             pickle.dump(vs, f)
 
+def save_json(filename, obj):
+    with open(filename, 'w') as f:
+        json.dump(obj, f)
+
+def load_json(filename):
+    with open(filename, 'r') as f:
+        obj = json.load(f)
+    return obj
+
+def save_s(filename, s):
+    with open(filename, 'w') as f:
+        f.write(s)
+
+def load_s(filename):
+    with open(filename, 'r') as f:
+        return f.readlines()
+
+
+
 def save_np(filename, array):
     import numpy as np
     np.savetxt(filename, array, delimiter=',')
@@ -315,6 +334,7 @@ def safe_delete(path, confirm=True):
     return False
 
 
+
 if __name__ == '__main__':
     dirs = get_dirs('/media/d/tt/b', only_sub=False)
     print(dirs)
@@ -333,49 +353,49 @@ if __name__ == '__main__':
 
 # ------------------------------ discard
 
-import demjson
-
-def load_args(dir_root, dir_sub='', name_trial='', file_name='arg', args_default=None, return_args_str=False):
-    '''
-
-    '''
-    if dir_sub != '':
-        if name_trial != '':
-            name_trial = '_' + name_trial
-        path_logger = os.path.join(dir_root, dir_sub + name_trial + '/')
-    else:
-        if name_trial != '':
-            path_logger = os.path.join(dir_root, dir_sub + name_trial + '/')
-        else:
-            path_logger = dir_root
-
-    if not os.path.exists(path_logger):
-        os.mkdir(path_logger)
-    file_arg = os.path.join(path_logger, file_name +'.json')
-    if not os.path.exists(file_arg):
-        if args_default is not None:
-            args = args_default
-            args = args.replace('=', ':')
-            with open(file_arg, 'w') as f:
-                f.write(args)
-        print('Please initialize args in ' + file_arg)
-        #exit()#临时
-    with open(file_arg, 'r') as f:
-        args_str = f.read()
-        args = demjson.decode(args_str)
-        args = Namespace(args)
-    if return_args_str:
-        return args,path_logger,file_arg,args_str
-    else:
-        return args, path_logger, file_arg
-
-
-def load_config(filename):
-    with open(filename, 'r') as f:
-        args_str = f.read()
-        args = demjson.decode(args_str)
-        args = Namespace(args)
-        return args
+# import demjson
+#
+# def load_args(dir_root, dir_sub='', name_trial='', file_name='arg', args_default=None, return_args_str=False):
+#     '''
+#
+#     '''
+#     if dir_sub != '':
+#         if name_trial != '':
+#             name_trial = '_' + name_trial
+#         path_logger = os.path.join(dir_root, dir_sub + name_trial + '/')
+#     else:
+#         if name_trial != '':
+#             path_logger = os.path.join(dir_root, dir_sub + name_trial + '/')
+#         else:
+#             path_logger = dir_root
+#
+#     if not os.path.exists(path_logger):
+#         os.mkdir(path_logger)
+#     file_arg = os.path.join(path_logger, file_name +'.json')
+#     if not os.path.exists(file_arg):
+#         if args_default is not None:
+#             args = args_default
+#             args = args.replace('=', ':')
+#             with open(file_arg, 'w') as f:
+#                 f.write(args)
+#         print('Please initialize args in ' + file_arg)
+#         #exit()#临时
+#     with open(file_arg, 'r') as f:
+#         args_str = f.read()
+#         args = demjson.decode(args_str)
+#         args = Namespace(args)
+#     if return_args_str:
+#         return args,path_logger,file_arg,args_str
+#     else:
+#         return args, path_logger, file_arg
+#
+#
+# def load_config(filename):
+#     with open(filename, 'r') as f:
+#         args_str = f.read()
+#         args = demjson.decode(args_str)
+#         args = Namespace(args)
+#         return args
 
 
 
