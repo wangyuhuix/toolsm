@@ -40,7 +40,7 @@ def ispc(name):
 
 def get_savepathroot():
     path_roots = {
-        'xiaoming': '/media/d/e/et/baselines',
+        'xiaoming': '/media/d/e/et',
         'hugo': '/home/hugo/Desktop/wxm',
     }
     for key in path_roots:
@@ -91,7 +91,6 @@ def colorize(string, color, bold=False, highlight=False):
     return '\x1b[%sm%s\x1b[0m' % (';'.join(attr), string)
 
 
-
 @contextmanager
 def timed(msg, print_atend=True, stdout=print):
     color = 'magenta'
@@ -136,7 +135,6 @@ def multiarr2meshgrid(arrs):
 
 def _get_files_dirs(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='', sort=None, suffix=None):
     if suffix is not None:
-        assert suffix[0] == '.'
         filter_suffix = lambda x: x.endswith(suffix)
         if filter_ is not None:
             filter_t = filter_
@@ -335,6 +333,38 @@ def safe_delete(path, confirm=True):
 
 
 
+def path2gif(path, suffix, range_, filename='all.gif'):
+    if suffix[0] != '.':
+        suffix = '.' + suffix
+    files = get_files(path, '', sort=False, suffix=suffix)
+    # print(range_)
+    if range_ is not None:
+        files = files[range_[0]:range_[1]:range_[2]]
+        # print(range_)
+    print(files)
+    files = [ os.path.join(path, f) for f in files ]
+    file_target = os.path.join( path, filename )
+    imgs2gif(files, file_target)
+
+def imgs2gif(files, file_save, size=None  ):
+    import imageio
+    import scipy.misc as mics
+    if size is not None:
+        assert len(size) == 2
+    frames = []
+    for ind,file in enumerate(files):
+        print_refresh(file)
+        frame = imageio.imread( file )
+        if size is not None:
+            frame = mics.imresize(frame, size)
+        frames.append( frame )
+    imageio.mimsave( file_save , frames, 'GIF-FI', duration=0.1)
+    print(f'\nGif create complete: {file_save}')
+
+
+# path2gif( '/media/d/e/et/bandit/ppo_bandit,continuous,tmp,learningrate=0.01,update_epochs=8,continous_gap=0.8', suffix='.jpg' )
+# exit()
+
 if __name__ == '__main__':
     dirs = get_dirs('/media/d/tt/b', only_sub=False)
     print(dirs)
@@ -465,3 +495,4 @@ def print_time(name=None,reset=False):
         print(str)
     __print_time_last = timer()
 '''
+
