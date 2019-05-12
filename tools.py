@@ -8,6 +8,27 @@ import numpy as np
 from contextlib import contextmanager
 import time
 
+import time
+
+
+class Timer():
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self._time = time.time()
+
+    def count(self, msg='', p=True, reset=True):
+        inverval = time.time() - self._time
+        if p:
+            print(f'msg: {inverval} s')
+        if reset:
+            self.reset()
+        return inverval
+
+
+
+
 
 class Namespace(object):
     def __init__(self, kw):
@@ -82,7 +103,7 @@ color2num = dict(
     white=37,
     crimson=38
 )
-def colorize(string, color, bold=False, highlight=False):
+def colorize(string, color='red', bold=False, highlight=False):
     attr = []
     num = color2num[color]
     if highlight: num += 10
@@ -239,6 +260,25 @@ def load_vars(filename, catchError=False):
         raise e
 
 
+def json2file(obj, keys_remove=[], dependencies={}, **kwargs):
+    obj = obj.copy()
+    for arg_key in dependencies.keys():
+        for arg_value in dependencies[arg_key].keys():
+            if arg_value != obj[arg_key]:
+                if dependencies[arg_key].__contains__(obj[arg_key]):
+                    for key_remove in dependencies[arg_key][arg_value]:#check下当前是不是没有这个key
+                        if key_remove not in dependencies[arg_key][ obj[arg_key] ]:
+                            keys_remove.append(key_remove)
+                else:
+                    keys_remove.extend( dependencies[arg_key][arg_value] )
+    for key in keys_remove:
+        print(key)
+        del obj[key]
+    args_str = json.dumps(obj, separators=(',', '='), **kwargs)
+    for s in ['"', '{', '}']:
+        args_str = args_str.replace(s, '')
+    return args_str
+
 def save_vars(filename, *vs, disp=False):
     if disp:
         print( f'Write to \n{filename}' )
@@ -295,6 +335,7 @@ import re
 def check_safe_path(path, confirm=True, depth=4, name='Modify'):
     # print(f"^({os.environ['HOME']}|/media)(/[^/]+){{3,}}")
     # exit()
+    print( f'check:{path}' )
     assert depth >= 4
     assert re.match(
         ''.join([ "^(", os.environ['HOME'], "|/media)(/[^/]+){",str(depth-1),",}" ])
@@ -333,7 +374,7 @@ def safe_delete(path, confirm=True):
 
 
 
-def path2gif(path, suffix, range_, filename='all.gif'):
+def path2gif(path, suffix, range_, filename='0000000000000.gif'):
     if suffix[0] != '.':
         suffix = '.' + suffix
     files = get_files(path, '', sort=False, suffix=suffix)

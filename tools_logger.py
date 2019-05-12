@@ -4,10 +4,40 @@ import json
 import os
 import itertools
 import numpy as np
-def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], name_suffix='', dirs_mid=['log'], name_project='tmp'):
+
+
+def int2str(i):
+    if isinstance(i, int) and i >= int(1e6):
+        i = f'{i:.0e}'
+    return i
+
+
+def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], dirs_type=['log'], name_project='tmpProject'):
+    '''
+    root_dir/name_project/dir_type/name_group/name_task
+    root_dir: root dir
+    name_project: your project
+    dir_type: e.g. log, model
+    name_group: for different setting, e.g. hyperparameter or just for test
+    '''
+    SPLIT = ','
+
+
     if args_dict is None:
         args_dict = vars(args)
     force_write = args.force_write
+
+
+    for i,key in enumerate(args.keys_group):
+        if args.name_group or i>0:
+            args.name_group += SPLIT
+        args.name_group += f'{key}={int2str(args_dict[key])}'
+
+
+    if not args.name_group:
+        args.name_group = 'tmpGroup'
+        print( f'args.name_group is empty. it is set to be {args.name_task}' )
+
 
     # -------------- get root directory -----------
     if tools.ispc('xiaoming'):
@@ -18,85 +48,94 @@ def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], name_suf
     root_dir = f'{root_dir}/{name_project}'
 
     # ----------- get sub directory -----------
-    keys_exclude.extend(['force_write'])
-    split = ','
+    keys_exclude.extend(['force_write','name_group','keys_group'])
+    if key_first is not None:
+        keys_exclude.append(key_first)
+    keys_exclude.extend( args.keys_group )
     # --- add first key
     if key_first is None:
         key_first = list(args_dict.keys())[0]
     keys_exclude.append(key_first)
-    sub_dir = args_dict[key_first]
+    name_task = args_dict[key_first]
     # --- add keys common
     for key in args_dict.keys():
         if key not in keys_exclude:
-            sub_dir += f'{split}{key}={args_dict[key]}'
-    sub_dir += ('' if name_suffix == '' else f'{split}{name_suffix}')
+            name_task += f'{SPLIT}{key}={int2str(args_dict[key])}'
+    # name_task += ('' if name_suffix == '' else f'{split}{name_suffix}')
 
 
     # ----------------- prepare directory ----------
-    dirs_full = dict()
-    for d_mid in dirs_mid:
-        assert d_mid
-        tools.makedirs( f'{root_dir}/{d_mid}' )#TODO:多进程的时候会报错
-        dirs_full[d_mid] = f'{root_dir}/{d_mid}/{sub_dir}'
-        setattr( args, f'{d_mid}_dir', dirs_full[d_mid] )
+    def get_dir_full( d_type, suffix='' ):
+        return f'{root_dir}/{d_type}/{args.name_group}/{name_task}{suffix}'
 
+    dirs_full = dict()
+    for d_type in dirs_type:
+        assert d_type
+        dirs_full[d_type] = get_dir_full(d_type)
+        # print(dirs_full[d_type])
+        setattr( args, f'{d_type}_dir', dirs_full[d_type] )
+    # exit()
     # ----- Move Dirs
     if np.any( [osp.exists( d ) for d in dirs_full.values() ]):  # 如果文件夹存在，则删除
-        print(
-            f"Exsits sub directory: {sub_dir} in {root_dir} \nMove to discard(y or n)?",
-            end='')
-        if force_write > 0:
-            cmd = 'y'
-            print()
-        elif force_write < 0:
-            exit()
-        else:
-            cmd = input()
+        # print(
+        #     f"Exsits sub directory: {name_task} in {root_dir} \nMove to discard(y or n)?",
+        #     end='')
+        # if force_write > 0:
+        #     cmd = 'y'
+        #     print(f'y (auto by force_write={force_write})')
+        # elif force_write < 0:
+        #     exit()
+        # else:
+        #     cmd = input()
+        cmd = 'y'
         if cmd == 'y':
             for i in itertools.count():
                 if i == 0:
                     suffix = ''
                 else:
-                    suffix = f'{split}{i}'
+                    suffix = f'{SPLIT}{i}'
                 dirs_full_discard = {}
-                for d_mid in dirs_mid:
-                    tools.mkdir(f'{root_dir}/{d_mid}_discard')
-                    dirs_full_discard[d_mid] = f'{root_dir}/{d_mid}_discard/{sub_dir}{suffix}'
+                for d_type in dirs_type:
 
+                    dirs_full_discard[d_type] = get_dir_full( f'{d_type}_del', suffix )
                 if not np.any( [osp.exists( d ) for d in dirs_full_discard.values() ]):
                     break
-            print(tools.colorize(f"Going to discard \n{sub_dir}\n{sub_dir}{suffix}\n"+f"Confirm move(y or n)?", 'red'), end='')
+
+            print(tools.colorize(f"Going to move \n{name_task} \n{name_task}{suffix}\n"+f"Confirm move(y or n)?", 'red'), end='')
             if force_write > 0:
                 cmd = 'y'
-                print()
+                print(f'y (auto by force_write={force_write})')
             elif force_write < 0:
                 exit()
             else:
                 cmd = input()
+
             if cmd == 'y' \
-                    and tools.check_safe_path(args.log_dir, confirm=False):
+                and \
+                np.all(tools.check_safe_path( dirs_full[d_mid], confirm=False) for d_type in dirs_type):
                 import shutil
-                for d_mid in dirs_mid:
-                    if osp.exists(dirs_full[d_mid]):
-                        # shutil.move(  f'Move:\n {dirs_full[d_mid]} \n {dirs_full_discard[d_mid]}','red')
-                        shutil.move(dirs_full[d_mid], dirs_full_discard[d_mid])
+                for d_type in dirs_type:
+                    if osp.exists(dirs_full[d_type]):
+                        print( tools.colorize( f'Move:\n {dirs_full[d_type]} \n {dirs_full_discard[d_type]}','red') )
+                        shutil.move(dirs_full[d_type], dirs_full_discard[d_type])#TODO: test if not exist?
             else:
-                print("Please Rename 'name_suffix'")
+                print("Please Rename 'name_group'")
                 exit()
         else:
-            print("Please Rename 'name_suffix'")
+            print("Please Rename 'name_group'")
             exit()
 
-    for d_mid in dirs_mid:
-        tools.mkdir( dirs_full[d_mid] )
 
-    args_str = vars(args)
+    for d_type in dirs_type:
+        tools.makedirs( dirs_full[d_type] )
+
     with open(f'{args.log_dir}/args.json', 'w') as f:
-        json.dump(args_str, f, indent=4, separators=(',', ':'))
+        json.dump(vars(args), f, indent=4, separators=(',', ':'))
 
 
 
 if __name__ == '__main__':
+
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # parser.add_argument('--env', help='environment ID', type=str, default='Reacher-v2')
@@ -106,10 +145,11 @@ if __name__ == '__main__':
     parser.add_argument('--play', default=False, action='store_true')
     parser.add_argument('--clipped-type', default='origin', type=str)
 
+    parser.add_argument('--name_group', default='', type=str)
     parser.add_argument('--force-write', default=1, type=int)
 
     args = parser.parse_args()
     args_dict = vars(args)
     args_dict['num_timesteps'] = f"{args_dict['num_timesteps']:.0e}"
-    prepare_log( args, args_dict )
+    prepare_dirs( args, args_dict )
     exit()
