@@ -406,6 +406,9 @@ def imgs2gif(files, file_save, size=None  ):
 # path2gif( '/media/d/e/et/bandit/ppo_bandit,continuous,tmp,learningrate=0.01,update_epochs=8,continous_gap=0.8', suffix='.jpg' )
 # exit()
 
+
+
+
 if __name__ == '__main__':
     dirs = get_dirs('/media/d/tt/b', only_sub=False)
     print(dirs)

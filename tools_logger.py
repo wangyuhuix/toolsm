@@ -6,14 +6,51 @@ import itertools
 import numpy as np
 
 
+
+def flatten(unflattened, parent_key='', separator='.'):
+    items = []
+    for k, v in unflattened.items():
+        if separator in k:
+            raise ValueError(
+                "Found separator ({}) from key ({})".format(separator, k))
+        new_key = parent_key + separator + k if parent_key else k
+        if isinstance(v, collections.MutableMapping) and v:
+            items.extend(flatten(v, new_key, separator=separator).items())
+        else:
+            items.append((new_key, v))
+
+    return dict(items)
+
+def unflatten(flattened, separator='.'):
+    result = {}
+    for key, value in flattened.items():
+        parts = key.split(separator)
+        d = result
+        for part in parts[:-1]:
+            if part not in d:
+                d[part] = {}
+            d = d[part]
+        d[parts[-1]] = value
+
+    return result
+
+
 def int2str(i):
-    if isinstance(i, int) and i >= int(1e6):
+    if isinstance(i, int) and i >= int(1e4):
         i = f'{i:.0e}'
     return i
 
 
+
+
 def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], dirs_type=['log'], name_project='tmpProject'):
     '''
+    required keys in args: 'force_write','name_group','keys_group'
+
+    parser.add_argument('--force_write', default=1, type=int)
+    parser.add_argument('--name_group', default='tmp', type=str)
+    parser.add_argument('--keys_group', default=['clipped_type'], type=ast.literal_eval)
+
     root_dir/name_project/dir_type/name_group/name_task
     root_dir: root dir
     name_project: your project
@@ -28,16 +65,17 @@ def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], dirs_typ
     force_write = args.force_write
 
 
+    name_key_group = ''
     for i,key in enumerate(args.keys_group):
-        if args.name_group or i>0:
-            args.name_group += SPLIT
-        args.name_group += f'{key}={int2str(args_dict[key])}'
+        if i>0:
+            name_key_group += SPLIT
+        name_key_group += f'{key}={int2str(args_dict[key])}'
 
+    args.name_group = name_key_group + (SPLIT if name_key_group else '') + args.name_group
 
     if not args.name_group:
         args.name_group = 'tmpGroup'
         print( f'args.name_group is empty. it is set to be {args.name_task}' )
-
 
     # -------------- get root directory -----------
     if tools.ispc('xiaoming'):
@@ -57,12 +95,12 @@ def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], dirs_typ
         key_first = list(args_dict.keys())[0]
     keys_exclude.append(key_first)
     name_task = args_dict[key_first]
+
     # --- add keys common
     for key in args_dict.keys():
         if key not in keys_exclude:
             name_task += f'{SPLIT}{key}={int2str(args_dict[key])}'
     # name_task += ('' if name_suffix == '' else f'{split}{name_suffix}')
-
 
     # ----------------- prepare directory ----------
     def get_dir_full( d_type, suffix='' ):
@@ -131,6 +169,7 @@ def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], dirs_typ
 
     with open(f'{args.log_dir}/args.json', 'w') as f:
         json.dump(vars(args), f, indent=4, separators=(',', ':'))
+
 
 
 
