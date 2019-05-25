@@ -154,7 +154,7 @@ def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], dirs_typ
                 import shutil
                 for d_type in dirs_type:
                     if osp.exists(dirs_full[d_type]):
-                        print( tools.colorize( f'Move:\n {dirs_full[d_type]} \n {dirs_full_discard[d_type]}','red') )
+                        print( tools.colorize( f'Move:\n{dirs_full[d_type]}\n To\n {dirs_full_discard[d_type]}','red') )
                         shutil.move(dirs_full[d_type], dirs_full_discard[d_type])#TODO: test if not exist?
             else:
                 print("Please Rename 'name_group'")
