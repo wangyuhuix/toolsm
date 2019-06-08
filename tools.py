@@ -249,16 +249,6 @@ def get_dirs(path_root='', path_rel='', filter_=None, only_sub=True, dir_end='',
 
 import pickle
 from warnings import warn
-def load_vars(filename, catchError=False):
-    try:
-        with open(filename,'rb') as f:
-            return pickle.load( f )
-    except Exception as e:
-        if catchError:
-            warn( f'Load Error! {filename}' )
-            return None
-        raise e
-
 
 def json2file(obj, keys_remove=[], dependencies={}, **kwargs):
     obj = obj.copy()
@@ -279,18 +269,43 @@ def json2file(obj, keys_remove=[], dependencies={}, **kwargs):
         args_str = args_str.replace(s, '')
     return args_str
 
-def save_vars(filename, *vs, disp=False):
+def load_vars(filename, catchError=False):
+    try:
+        values = []
+        with open(filename,'rb') as f:
+            try:
+                while True:
+                    values.append(pickle.load( f ))
+            except EOFError as e:
+                if len(values) == 1:
+                    return values[0]
+                else:
+                    return values
+    except Exception as e:
+        if catchError:
+            warn( f'Load Error! {filename}' )
+            return None
+        # raise e
+#
+def save_vars(filename, *vs, disp=False, append=False):
     if disp:
         print( f'Write to \n{filename}' )
-    with open(filename,'wb') as f:
+    mode = 'ab' if append else 'wb'
+    with open(filename,mode) as f:
         if len(vs) == 1:
             pickle.dump(vs[0], f)
         else:
             pickle.dump(vs, f)
 
+def tes_save_vars():
+    save_vars( 't/a.pkl',1 )
+    # save_vars('t/a.pkl', 2, append=True)
+    x = load_vars('t/a.pkl')
+    pass
+
 def save_json(filename, obj):
     with open(filename, 'w') as f:
-        json.dump(obj, f)
+        json.dump(obj, f,indent=4, separators=(',', ':'))
 
 def load_json(filename):
     with open(filename, 'r') as f:
@@ -410,6 +425,8 @@ def imgs2gif(files, file_save, size=None  ):
 
 
 if __name__ == '__main__':
+    tes_save_vars()
+    exit()
     dirs = get_dirs('/media/d/tt/b', only_sub=False)
     print(dirs)
     # print(os.environ['HOME'])
