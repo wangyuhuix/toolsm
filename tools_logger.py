@@ -36,14 +36,21 @@ def unflatten(flattened, separator='.'):
 
 
 def int2str(i):
-    if isinstance(i, int) and i >= int(1e4):
-        i = f'{i:.0e}'
+    if isinstance(i, float):
+        if float.is_integer(i):
+            i = int(i)
+        else:
+            i = f'{i:g}'
+    if isinstance(i, int):
+        if i >= int(1e4):
+            i = f'{i:.0e}'
     return i
 
+# print( int2str(20000) )
 
 
 
-def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], dirs_type=['log'], name_project='tmpProject'):
+def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_project='tmpProject'):
     '''
     required keys in args: 'force_write','name_group','keys_group'
 
@@ -60,18 +67,18 @@ def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], dirs_typ
     SPLIT = ','
 
 
-    if args_dict is None:
-        args_dict = vars(args)
+    args_dict = vars(args)
     force_write = args.force_write
 
 
+    # ---------------- get name_group -------------
     name_key_group = ''
     for i,key in enumerate(args.keys_group):
         if i>0:
             name_key_group += SPLIT
         name_key_group += f'{key}={int2str(args_dict[key])}'
 
-    args.name_group = name_key_group + (SPLIT if name_key_group else '') + args.name_group
+    args.name_group = name_key_group + (SPLIT if name_key_group and args.name_group else '') + args.name_group
 
     if not args.name_group:
         args.name_group = 'tmpGroup'
@@ -100,6 +107,8 @@ def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], dirs_typ
     for key in args_dict.keys():
         if key not in keys_exclude:
             name_task += f'{SPLIT}{key}={int2str(args_dict[key])}'
+
+            # print( f'{key},{type(args_dict[key])}' )
     # name_task += ('' if name_suffix == '' else f'{split}{name_suffix}')
 
     # ----------------- prepare directory ----------
@@ -110,7 +119,7 @@ def prepare_dirs(args, args_dict=None, key_first=None, keys_exclude=[], dirs_typ
     for d_type in dirs_type:
         assert d_type
         dirs_full[d_type] = get_dir_full(d_type)
-        # print(dirs_full[d_type])
+        print( tools.colorize( f'{d_type}_dir:\n{dirs_full[d_type]}' , 'green') )
         setattr( args, f'{d_type}_dir', dirs_full[d_type] )
     # exit()
     # ----- Move Dirs
