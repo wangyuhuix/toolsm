@@ -15,7 +15,8 @@ def equal( objs, objs_old ):
         assert list(objs.keys()) == list(objs_old.keys())
         for i, (d1, d2) in enumerate(zip(objs.values(), objs_old.values())):
             is_equal = tools.equal(d1, d2)
-            print(list(objs.keys())[i], is_equal)
+            color = 'blue' if is_equal else 'red'
+            print(f" key {list(objs.keys())[i]}: {tools.colorize(str(is_equal), color)}")
     else:
         for i, (d1, d2) in enumerate(zip(objs, objs_old)):
             is_equal = tools.equal(d1, d2)
