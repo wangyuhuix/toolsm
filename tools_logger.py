@@ -149,10 +149,14 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
                     break
 
             print(tools.colorize(f"Going to move \n{name_task} \n{name_task}{suffix}\n"+f"Confirm move(y or n)?", 'red'), end='')
-            if force_write > 0:
+            if force_write is None:
+                cmd = 'n'
+                print(f'Do not move and use old directory (auto by force_write={force_write})')
+            elif force_write > 0:
                 cmd = 'y'
                 print(f'y (auto by force_write={force_write})')
             elif force_write < 0:
+                cmd = 'n'
                 exit()
             else:
                 cmd = input()
@@ -166,11 +170,13 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
                         print( tools.colorize( f'Move:\n{dirs_full[d_type]}\n To\n {dirs_full_discard[d_type]}','red') )
                         shutil.move(dirs_full[d_type], dirs_full_discard[d_type])#TODO: test if not exist?
             else:
-                print("Please Rename 'name_group'")
-                exit()
+                print("You can try to rename 'name_group'")
+                if force_write is not None:
+                    exit()
         else:
-            print("Please Rename 'name_group'")
-            exit()
+            print("You can try to 'name_group'")
+            if force_write is not None:
+                exit()
 
 
     for d_type in dirs_type:

@@ -43,8 +43,10 @@ def mkdir( dir ):
         return True
     return False
 
+def makedirs(dir):
+    return mkdirs(dir)
 
-def makedirs( dir ):
+def mkdirs(dir):
     if not os.path.exists(dir):
         try:
             os.makedirs(dir)
@@ -337,6 +339,40 @@ def get_ip(name):
     else:
         return None
 import time
+
+
+def __equal_print(disp, msg):
+    if disp:
+        print(msg)
+
+def equal(a, b, disp=False):
+    '''
+    a and b are equal if and only if
+    '''
+    if isinstance(a, tuple):
+        a = list(a)
+    if isinstance(b, tuple):
+        b = list(b)
+    if type(a) != type(b):
+        __equal_print( disp, f'different type: {type(a)} vs {type(b)}' )
+        return False
+    if isinstance( a, list ):
+        if len(a) != len(b):
+            __equal_print(disp, f'(List) different length: length {len(a)} vs. length {len(b)}')
+            return False
+        for ind,(x,y) in enumerate(zip(a,b)):
+            if not equal(x,y):
+                __equal_print(disp, f'(List): item {ind} not equal')
+                return False
+    else:
+        res = a==b
+        if isinstance(res, np.ndarray):
+            res = res.all()
+            if not res:
+                __equal_print(disp, '(np.ndarray): not all items equal')
+                return False
+        return res
+    return True
 
 def time_now_str():
     return time.strftime('%m/%d|%H:%M:%S', time.localtime())
