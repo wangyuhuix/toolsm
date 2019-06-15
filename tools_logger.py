@@ -157,6 +157,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
                 print(f'y (auto by force_write={force_write})')
             elif force_write < 0:
                 cmd = 'n'
+                print(f'n and exit() (auto by force_write={force_write})')
                 exit()
             else:
                 cmd = input()
