@@ -45,7 +45,7 @@ def mkdir( dir ):
 
 def makedirs(dir):
     return mkdirs(dir)
-
+#会自动创建子文件夹
 def mkdirs(dir):
     if not os.path.exists(dir):
         try:
@@ -156,7 +156,9 @@ def multiarr2meshgrid(arrs):
 
 
 
-def _get_files_dirs(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='', sort=None, suffix=None):
+def _get_files_dirs(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='', sort=False, sort_reverse=None, sort_number=False, suffix=None):
+    if sort and sort_reverse is None:
+        sort_reverse = False
     if suffix is not None:
         filter_suffix = lambda x: x.endswith(suffix)
         if filter_ is not None:
@@ -164,90 +166,82 @@ def _get_files_dirs(path_root='', path_rel='', filter_=None, only_sub=True, type
             filter_ = lambda x: filter_t(x) and filter_suffix(x)
         else:
             filter_ = filter_suffix
-    return _get_files_dirs_entity(path_root, path_rel, filter_, only_sub, type, dir_end, sort)
+    return _get_files_dirs_entity(path_root, path_rel, filter_, only_sub, type, dir_end, sort_reverse, sort_number)
 
-def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='', sort=None, suffix=None):
+import re
+def text2int(text):
+    return int(text) if text.isdigit() else text
+
+def text2texts_ints(text):
+    '''
+    alist.sort(key=natural_keys) sorts in human order
+    http://nedbatchelder.com/blog/200712/human_sorting.html
+    (See Toothy's implementation in the comments)
+    '''
+    return [ text2int(c) for c in re.split(r'(\d+)', text) ]
+
+import inspect
+def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='', sort_reverse=None,  sort_number=False):
+    # kwargs = dict(path_root=path_root, path_rel=path_rel, filter_=filter_, only_sub=only_sub, dir_end=dir_end, sort_reverse=sort_reverse, sort_number=sort_number, )
+    kwargs = {}
+    for vname in inspect.getargspec(_get_files_dirs_entity)[0]:
+        kwargs.update( {f'{vname}': locals()[vname]} )
     files = []
-    dirs = []
+    dirs_ = []
     lists = os.listdir(os.path.join(path_root, path_rel))
 
+    if sort_reverse is not None or sort_number:
+        kwargs_sort = {}
+        if sort_reverse is not None:
+            kwargs_sort.update(reverse=sort_reverse )
+        if sort_number:
+            kwargs_sort.update(key=text2texts_ints)
+        lists.sort(**kwargs_sort)
     for item in lists:
         item_absolute = os.path.join(path_root, path_rel, item)
         item_rel = os.path.join(path_rel, item)
         if os.path.isfile(item_absolute):
             files.append(item_rel)
         elif os.path.isdir(item_absolute):
-            dirs.append(item_rel+dir_end)
-    # print(dirs)
+            dirs_.append(item_rel+dir_end)
+
+
     if filter_:
         files = list(filter(filter_, files))
-        dirs_search = copy.copy(dirs)
-        dirs = list(filter(filter_, dirs))
+        dirs_search = copy.copy(dirs_)
+        dirs_ = list(filter(filter_, dirs_))
     else:
-        dirs_search = copy.copy(dirs)
+        dirs_search = copy.copy(dirs_)
 
-    if type =='file':
-        #if filter_: files = list(filter( filter_, files )) #fnmatch.filter(files, filter_)
-        if not only_sub:
-            for dir in dirs_search:
-                files += _get_files_dirs_entity(path_root, dir, filter_, only_sub, 'file')
-        obj_return = files
-    elif type == 'dir':
-        #if filter_: dirs = list(filter( filter_, dirs ))#fnmatch.filter(dirs, filter_)
-        if not only_sub:
-            for dir in dirs_search:
-                # print(path_root, ' ', path_rel, ' ', dir)
-                dirs += _get_files_dirs_entity(path_root, dir, filter_, only_sub, 'dir', dir_end)
-        obj_return = dirs
-    else:
-        NotImplementedError
+    obj_return = files if type=='file' else dirs_
+    if not only_sub:
+        for dir in dirs_search:
+            obj_return += _get_files_dirs_entity(**kwargs)
 
-    if sort is not None:
-        obj_return.sort(reverse=sort)
     return obj_return
 
-def get_files(path_root='', path_rel='', filter_=None, only_sub=True, sort=None, suffix=None):
+def get_files(path_rel='',path_root='',  filter_=None, only_sub=True, sort=None, sort_reverse=None, sort_number=False, suffix=None):
     '''
-    :param path_root:
-    :type path_root:
-    :param path_rel:
-    :type path_rel:
     :param filter_:a function returns true or false. e.g. lamabda filename: filename.__contains__('xxx')
-    :type filter_:
-    :param only_sub:
-    :type only_sub:
-    :param sort:
-    :type sort:
-    :param suffix:
-    :type suffix:
-    :return:
-    :rtype:
     '''
-    return _get_files_dirs(path_root,path_rel,filter_,only_sub,'file', sort=sort, suffix=suffix)
+    kwargs = {}
+    for vname in inspect.getargspec(get_files)[0]:
+        kwargs.update( {f'{vname}': locals()[vname]} )
+    return _get_files_dirs( **kwargs, type='file' )
 
 
-def get_dirs(path_root='', path_rel='', filter_=None, only_sub=True, dir_end='', sort=None, suffix=None):
+def get_dirs(path_rel='', path_root='',  filter_=None, only_sub=True, dir_end='', sort=None, sort_reverse=None, sort_number=False, suffix=None):
     '''
-
-    :param path_root:
-    :type path_root:
-    :param path_rel:
-    :type path_rel:
     :param filter_:a function returns true or false. e.g. lamabda filename: filename.__contains__('xxx')
-    :type filter_:
-    :param only_sub:
-    :type only_sub:
-    :param dir_end:
-    :type dir_end:
-    :param sort:
-    :type sort:
-    :param suffix:
-    :type suffix:
-    :return:
-    :rtype:
     '''
-    return _get_files_dirs(path_root,path_rel,filter_,only_sub,'dir', dir_end=dir_end, sort=sort, suffix=suffix)
-
+    kwargs = {}
+    for vname in inspect.getargspec(get_dirs)[0]:
+        kwargs.update( {f'{vname}': locals()[vname]} )
+    return _get_files_dirs( **kwargs, type='dir' )
+# print(
+# get_files(path_root='/media/d/e/et/baselines/model/clipped_type=kl2clip,cliprange=0.2,delta_kl=None,hidden_sizes=128,num_sharing_layers=0,ac_fn=relu,reward_scale=5.0/HalfCheetah-v2,seed=559,policy_type=MlpPolicyMy,explore_timesteps=0,explore_additive_threshold=None,explore_additive_rate=0,coef_predict_task=0/advs', sort=True, sort_number=True)
+# )
+# exit()
 
 import pickle
 from warnings import warn
@@ -305,8 +299,9 @@ def tes_save_vars():
     x = load_vars('t/a.pkl')
     pass
 
-def save_json(filename, obj):
-    with open(filename, 'w') as f:
+def save_json(filename, obj, append=False):
+    mode = 'a' if append else 'w'
+    with open(filename, mode) as f:
         json.dump(obj, f,indent=4, separators=(',', ':'))
 
 def load_json(filename):
@@ -314,8 +309,9 @@ def load_json(filename):
         obj = json.load(f)
     return obj
 
-def save_s(filename, s):
-    with open(filename, 'a') as f:
+def save_s(filename, s, append=False):
+    mode = 'a' if append else 'w'
+    with open(filename, mode) as f:
         f.write(s)
 
 def load_s(filename):
@@ -383,21 +379,26 @@ def time_now_str_filename():
 
 import shutil
 import re
-def check_safe_path(path, confirm=True, depth=4, name='Modify'):
-    # print(f"^({os.environ['HOME']}|/media)(/[^/]+){{3,}}")
-    # exit()
+def check_safe_path(path, confirm=True, depth=4, require_not_containsub=True, name='Modify'):
+    '''
+    If the depth of the path is [depth], and it does not contain sub directory (if require_not_containsub is True)
+    '''
     print( f'check:{path}' )
-    assert depth >= 4
+    depth_min = 4
+    assert depth >= depth_min, f'depth is at least {depth_min}, please modfiy your code for calling check_safe_path()'
     assert re.match(
-        ''.join([ "^(", os.environ['HOME'], "|/media)(/[^/]+){",str(depth-1),",}" ])
+        ''.join([ "^(", os.environ['HOME'], "|", "/media)(/[^/]+){",str(depth-1),",}" ])
         ,path), f'At least operate {depth}-th depth sub-directory!'
+    contents = ''
+    if not os.path.isfile( path ):
+        dirs = get_dirs(path, dir_end='/')
+        files = get_files( path )
+        # for content in dirs+files:
+        #     contents += f'\n       {content}'
+        if require_not_containsub:
+            assert len(dirs) == 0
+        contents = f'{len(dirs)} dirs and {len(files)} files'
     if confirm:
-        contents = ''
-        if not os.path.isfile( path ):
-            dirs = get_dirs(path, dir_end='/')
-            files = get_files( path )
-            for content in dirs+files:
-                contents += f'\n       {content}'
         print(f"{name} path '{path}'! It contains {contents}\n (y or n)?", end='')
         cmd = input()
         if cmd == 'y':
@@ -407,16 +408,16 @@ def check_safe_path(path, confirm=True, depth=4, name='Modify'):
     else:
         return True
 
-def safe_move( src, dst, confirm=True ):
-    if check_safe_path(src, confirm, name='Move'):
+def safe_move( src, dst, **kwargs ):
+    if check_safe_path(src, **kwargs, name='Move'):
         shutil.move(src, dst)
         print(f"Moved '{src}' \nto '{dst}'")
         return True
     print(f"Cancel moving file '{src}'")
     return False
 
-def safe_delete(path, confirm=True):
-    if check_safe_path( path, confirm, name='Delete' ):
+def safe_delete(path, **kwargs):
+    if check_safe_path( path, **kwargs, name='Delete' ):
         print(f"Deleted '{path}'")
         shutil.rmtree( path )
         return True

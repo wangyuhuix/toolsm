@@ -5,7 +5,7 @@ import os
 import itertools
 import numpy as np
 
-
+import argparse
 
 def flatten(unflattened, parent_key='', separator='.'):
     items = []
@@ -65,9 +65,13 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     name_group: for different setting, e.g. hyperparameter or just for test
     '''
     SPLIT = ','
+    from dotmap import DotMap
+    if isinstance(args, argparse.Namespace):
+        args = vars(args)
+    if isinstance(args, dict):
+        args = DotMap(args)
 
-
-    args_dict = vars(args)
+    assert isinstance(args, DotMap)
     force_write = args.force_write
 
 
@@ -76,7 +80,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     for i,key in enumerate(args.keys_group):
         if i>0:
             name_key_group += SPLIT
-        name_key_group += f'{key}={int2str(args_dict[key])}'
+        name_key_group += f'{key}={int2str(args[key])}'
 
     args.name_group = name_key_group + (SPLIT if name_key_group and args.name_group else '') + args.name_group
 
@@ -99,14 +103,14 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     keys_exclude.extend( args.keys_group )
     # --- add first key
     if key_first is None:
-        key_first = list(args_dict.keys())[0]
+        key_first = list(args.keys())[0]
     keys_exclude.append(key_first)
-    name_task = args_dict[key_first]
+    name_task = args[key_first]
 
     # --- add keys common
-    for key in args_dict.keys():
+    for key in args.keys():
         if key not in keys_exclude:
-            name_task += f'{SPLIT}{key}={int2str(args_dict[key])}'
+            name_task += f'{SPLIT}{key}={int2str(args[key])}'
 
             # print( f'{key},{type(args_dict[key])}' )
     # name_task += ('' if name_suffix == '' else f'{split}{name_suffix}')
@@ -123,7 +127,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
         setattr( args, f'{d_type}_dir', dirs_full[d_type] )
     # exit()
     # ----- Move Dirs
-    if np.any( [osp.exists( d ) for d in dirs_full.values() ]):  # 如果文件夹存在，则删除
+    if np.any( [osp.exists( d ) and bool(os.listdir(d))  for d in dirs_full.values() ]):  # 如果文件夹存在且不为空，则转移
         # print(
         #     f"Exsits sub directory: {name_task} in {root_dir} \nMove to discard(y or n)?",
         #     end='')
@@ -183,9 +187,8 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     for d_type in dirs_type:
         tools.makedirs( dirs_full[d_type] )
 
-    with open(f'{args.log_dir}/args.json', 'w') as f:
-        json.dump(vars(args), f, indent=4, separators=(',', ':'))
-
+    tools.save_json( os.path.join(args.log_dir, 'args.json'), args.toDict() )
+    return args
 
 
 
@@ -204,7 +207,5 @@ if __name__ == '__main__':
     parser.add_argument('--force-write', default=1, type=int)
 
     args = parser.parse_args()
-    args_dict = vars(args)
-    args_dict['num_timesteps'] = f"{args_dict['num_timesteps']:.0e}"
     prepare_dirs( args, args_dict )
     exit()
