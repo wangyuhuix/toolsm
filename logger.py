@@ -13,27 +13,34 @@ import sys
 import shutil
 import os.path as osp
 import json
-from baselines.common.console_util import fmt_row
 from enum import Enum, unique
 import numpy as np
 
-def fmt_item(x, l):
+
+def truncate(s, width_max):
+    return s[:width_max - 2] + '..' if len(s) > width_max else s
+
+
+def fmt_item(x, width):
     if isinstance(x, np.ndarray):
         assert x.ndim==0
         x = x.item()
-    if isinstance(x, float): rep = "%g"%x
-    else: rep = str(x)
-    return " "*(l - len(rep)) + rep
+    if isinstance(x, float): s = "%g"%x
+    else: s = str(x)
+    s = truncate(s, width)
+    return  s+" "*max((width - len(s)), 0)
 
 
-def fmt_row(width, row, header=False):
-    if isinstance(width,list):
-        assert len(width) == len(row)
-        out = " | ".join(fmt_item(x, width[ind]) for ind,x in enumerate(row))
-    else:
-        out = " | ".join(fmt_item(x, width) for ind, x in enumerate(row))
-    if header: out = out + "\n" + "-"*len(out)
+def fmt_row(widths, values, is_header=False):
+    from collections.abc import Iterable
+    # if not isinstance( widths, Iterable):
+    #     widths = [widths] * len(row)
+    assert isinstance(widths, Iterable )
+    assert len(widths) == len(values)
+    out = " | ".join(fmt_item(x, widths[ind]) for ind,x in enumerate(values))
+    if is_header: out = out + "\n" + "-" * len(out)
     return out
+
 @unique
 class type(Enum):
     stdout=0
@@ -50,20 +57,17 @@ DISABLED = 50
 
 
 class OutputFormat(object):
-    def writekvs(self, kvs, width):
+    def writekvs(self, kvs):
         """
         Write key-value pairs
         """
         pass
 
-    def writeseq(self, args, width):
-        """
-        Write a sequence of other data (e.g. a logging message)
-        """
+    def write_line(self, line):
         pass
 
     def close(self):
-        return
+        pass
 
 class CsvOuputFormat(OutputFormat):
     def __init__(self, file):
@@ -78,10 +82,11 @@ class CsvOuputFormat(OutputFormat):
         self.file.write('\n')
         self.file.flush()
 
-    def close(self):
-        return
 
-class HumanOutputFormat(OutputFormat):
+    def close(self):
+        self.file.close()
+
+class LogOutputFormat(OutputFormat):
     def __init__(self, file):
         self.file = file
 
@@ -108,22 +113,12 @@ class HumanOutputFormat(OutputFormat):
             ))
         lines.append(dashes)
         self.file.write('\n'.join(lines) + '\n')
-
         # Flush the output to the file
         self.file.flush()
 
-    def _truncate(self, s, width_max):
-        return s[:width_max-3] + '...' if len(s) > width_max else s
 
-    def writeseq(self, args, width):
-        if isinstance(args,str):
-            args = [args]
-        if isinstance(args,list) or isinstance(args, tuple):
-            args = fmt_row( width=width, row=args)
-        self.file.write(args)
-        self.file.write('\n')
-        self.file.flush()
-
+    def close(self):
+        self.file.close()
 
 class JSONOutputFormat(OutputFormat):
     def __init__(self, file):
@@ -131,32 +126,35 @@ class JSONOutputFormat(OutputFormat):
 
     def writekvs(self, kvs, width):
         for k, v in kvs.items():
-            if hasattr(v, 'dtype'):
+            if hasattr(v, np.ndarray):
                 v = v.tolist()
-                kvs[k] = float(v)
+                kvs[k] = v
         self.file.write(json.dumps(kvs) + '\n')
         self.file.flush()
 
+    def close(self):
+        self.file.close()
 
-def make_output_format(format, ev_dir=None, prefix='', overwrite=True):
+def make_output_format(fmt, ev_dir=None, filename='tmp', append=True):
     if ev_dir is not None:
         os.makedirs(ev_dir, exist_ok=True)
-    if prefix != '':
-        prefix += '_'
-    mode = 'wt' if overwrite else 'at'
-    if format == type.stdout:
-        return HumanOutputFormat(sys.stdout)
-    elif format == type.log:
-        log_file = open(osp.join(ev_dir, prefix+'log.txt'), mode)
-        return HumanOutputFormat(log_file)
-    elif format == type.json:
-        json_file = open(osp.join(ev_dir, prefix+'progress.json'), mode)
-        return JSONOutputFormat(json_file)
-    elif format == type.csv:
-        csv_file = open(osp.join(ev_dir, prefix+'log.csv'), mode)
-        return CsvOuputFormat(csv_file)
+
+    mode = 'wt' if append else 'at'
+    if isinstance(fmt, str):
+        fmt = type[fmt]
+    settings = {
+        type.stdout: dict(ext='stdout', cls=LogOutputFormat),
+        type.log: dict(ext='log', cls=LogOutputFormat),
+        type.json: dict(ext='json', cls=JSONOutputFormat),
+        type.csv: dict(ext='csv', cls=CsvOuputFormat),
+    }
+    if fmt == type.stdout:
+        file = sys.stdout
     else:
-        raise ValueError('Unknown format specified: %s' % (format,))
+        file = open(osp.join(ev_dir, f"{filename}.{settings[fmt]['ext']}"), mode)
+
+    return settings[fmt]['cls']( file )
+
 
 
 #可以考虑修改下，output_formats，width什么的用起来还是不是太方便
@@ -164,35 +162,33 @@ def make_output_format(format, ev_dir=None, prefix='', overwrite=True):
 class Logger(object):
     DEFAULT = None
 
-    def __init__(self, output_formats, dir=None, name='', width_log=30, width_kv=30, overwrite=True):
-        self.name2val = OrderedDict()  # values this iteration
+    def __init__(self, output_formats, dir=None, name='', overwrite=True):
+        self.row_cache = OrderedDict()  # values this iteration
         self.level = INFO
         self.dir = dir
-        self.width_log = width_log
-        self.width_kv = width_kv
-        self.output_formats = [make_output_format(f, dir, name, overwrite=overwrite) for f in output_formats]
+        self.output_formats = [make_output_format(f, dir, name, append=overwrite) for f in output_formats]
 
-    def log(self, args, level=INFO, width=None):
-        if width is None:
-            width = self.width_log
-        if self.level <= level:
-            self._log(args, width)
+    def log_line(self, s):
+        for fmt in self.output_formats:
+            fmt.write_line(s)
 
-    def logkv(self, key, val):
-        self.name2val[key] = val
+    def log_row(self, **kwargs):
+        self.dump_cols( kwargs )
 
-    def dumpkvs(self, width=None):
-        if len(self.name2val) == 0:
+    def log_col(self, key, val):
+        self.row_cache[key] = val
+        self.dump_cols()
+
+    def dump_cols(self, row_cache=None):
+        if row_cache is None:
+            row_cache = self.row_cache
+        if len(row_cache) == 0:
             return
-        if width is not None:
-            self.width_kv = width
-        for fmt in self.output_formats:
-            fmt.writekvs(self.name2val, self.width_kv)
-        self.name2val.clear()
 
-    def _log(self, args, width):
         for fmt in self.output_formats:
-            fmt.writeseq(args, width=width)
+            fmt.writekvs(row_cache)
+        row_cache.clear()
+
 
     def set_level(self, level):
         self.level = level
@@ -203,16 +199,16 @@ class Logger(object):
 
 Logger.DEFAULT = Logger(output_formats=[type.stdout])
 def log(args,level=INFO, width=None):
-    return Logger.DEFAULT.log(args,width=width, level=level)
+    return Logger.DEFAULT.log_row(args, width=width, level=level)
 
 def setlevel(level):
     return Logger.DEFAULT.set_level(level)
 
 def logkv(key, val):
-    return Logger.DEFAULT.logkv(key, val)
+    return Logger.DEFAULT.log_col(key, val)
 
 def dumpkvs(width=None):
-    return Logger.DEFAULT.dumpkvs(width)
+    return Logger.DEFAULT.dump_cols(width)
 
 
 import time
@@ -233,8 +229,8 @@ class LogTime():
     def complete(self):
         self.dict['time_end'] = time.strftime('%m/%d|%H:%M:%S', time.localtime())
         if self.ind%self.interval_showtitle==0:
-            self.logger.log( list( self.dict.keys() ) )
-        self.logger.log( list(self.dict.values() ) )
+            self.logger.log_row(list(self.dict.keys()))
+        self.logger.log_row(list(self.dict.values()))
         self.ind += 1
 
 
@@ -243,7 +239,7 @@ def _demo():
     dir = "/tmp/testlogging1"
     l = Logger(dir=dir,output_formats=[type.stdout,type.csv],name='aa')
     #l.width_log = [3,4]
-    l.log(['abc','cde'])
+    l.log_row(['abc', 'cde'])
     #l.dumpkvs(1)
     exit()
 

@@ -35,13 +35,13 @@ class DiagNormal(Pd):
 
         if var is not None:
             self.std =var.sqrt()
-            self.logstd = self.std.log()
+            self.logstd = self.std.log_row()
         elif logvar is not None:
             self.logstd = logvar.mul(0.5)
             self.std = self.logstd.exp()
         elif std is not None:
             self.std = std
-            self.logstd = std.log()
+            self.logstd = std.log_row()
         elif logstd is not None:
             self.logstd = logstd
             self.std = self.logstd.exp()
