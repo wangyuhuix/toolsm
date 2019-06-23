@@ -106,6 +106,8 @@ color2num = dict(
     crimson=38
 )
 def colorize(string, color='red', bold=False, highlight=False):
+    if string == '':
+        return string
     attr = []
     num = color2num[color]
     if highlight: num += 10
