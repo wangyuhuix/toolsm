@@ -52,7 +52,7 @@ def run_script_parallel(scipt, args_default={}, args_unassembled_all: dict=None,
     args_call_all = []
     args_call_base = ['python', '-m', scipt]
     print( ' '.join(args_call_base) )
-    for args_assembled in args_assembled_all:
+    for ind, args_assembled in enumerate(args_assembled_all):
         # 复制默认参数
         args = args_default.copy()
 
@@ -70,7 +70,7 @@ def run_script_parallel(scipt, args_default={}, args_unassembled_all: dict=None,
             args_call += [f'--{argname}', str(arg_value)]
             args_call_str += [ f'-{argname}', tools.colorize( str(arg_value) , 'green' )  ]
         print( ' '.join(args_call_str) )
-        args_call_all.append(args_call)
+        args_call_all.append( (args_call, ind, len(args_assembled_all)))
     print( f'PROCESS COUNT: {len(args_call_all)}' )
     # exit()
     #TODO: log
@@ -92,13 +92,25 @@ def judge_continue(file_path, keys):
     return j[key]
 
 
-def start_process(args):
+def start_process(args_info):
+    args, ind, n_all = args_info
+    print( tools.colorize( f'Process: {ind}/{n_all}', 'blue' ))
     keys_start = ['continue', ]
     continue_ = judge_continue(file_path=os.path.join(os.getcwd()), keys=keys_start)
     if not continue_:
         print('run.json shows stop')
         return
-    subprocess.check_call(args)
+    finish = False
+    for i in range(10):
+        try:
+            subprocess.check_call(args)
+            break
+        except Exception as e:
+            import time
+            seconds_sleep = i*5
+            print(f'An error happened, sleep for {seconds_sleep}s! Exception: {e}')
+            time.sleep(seconds_sleep)
+
 
 
 

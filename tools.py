@@ -158,7 +158,7 @@ def multiarr2meshgrid(arrs):
 
 
 
-def _get_files_dirs(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='', sort=False, sort_reverse=None, sort_number=False, suffix=None):
+def _get_files_dirs(path_root='', path_rel='', filter_=None, depth=1, only_last_depth=False, type='file', dir_end='', sort=False, sort_reverse=None, sort_number=False, suffix=None):
     if sort and sort_reverse is None:
         sort_reverse = False
     if suffix is not None:
@@ -168,7 +168,7 @@ def _get_files_dirs(path_root='', path_rel='', filter_=None, only_sub=True, type
             filter_ = lambda x: filter_t(x) and filter_suffix(x)
         else:
             filter_ = filter_suffix
-    return _get_files_dirs_entity(path_root, path_rel, filter_, only_sub, type, dir_end, sort_reverse, sort_number)
+    return _get_files_dirs_entity(path_root, path_rel, filter_, depth, only_last_depth, type, dir_end, sort_reverse,  sort_number)
 
 import re
 def text2int(text):
@@ -183,7 +183,9 @@ def text2texts_ints(text):
     return [ text2int(c) for c in re.split(r'(\d+)', text) ]
 
 import inspect
-def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, only_sub=True, type='file', dir_end='', sort_reverse=None,  sort_number=False):
+
+# def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, depth=1, only_last_depth=, type='file', dir_end='', sort_reverse=None,  sort_number=False):
+def _get_files_dirs_entity(path_root, path_rel, filter_, depth, only_last_depth, type, dir_end, sort_reverse,  sort_number):
     # kwargs = dict(path_root=path_root, path_rel=path_rel, filter_=filter_, only_sub=only_sub, dir_end=dir_end, sort_reverse=sort_reverse, sort_number=sort_number, )
     kwargs = {}
     for vname in inspect.getargspec(_get_files_dirs_entity)[0]:
@@ -199,6 +201,10 @@ def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, only_sub=Tru
         if sort_number:
             kwargs_sort.update(key=text2texts_ints)
         lists.sort(**kwargs_sort)
+
+    if filter_:
+        lists = list(filter(filter_, lists))
+
     for item in lists:
         item_absolute = os.path.join(path_root, path_rel, item)
         item_rel = os.path.join(path_rel, item)
@@ -208,21 +214,22 @@ def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, only_sub=Tru
             dirs_.append(item_rel+dir_end)
 
 
-    if filter_:
-        files = list(filter(filter_, files))
-        dirs_search = copy.copy(dirs_)
-        dirs_ = list(filter(filter_, dirs_))
+    dirs_search = copy.copy(dirs_)
+    if not only_last_depth or depth ==1 :
+        obj_return = files if type=='file' else dirs_
     else:
-        dirs_search = copy.copy(dirs_)
-
-    obj_return = files if type=='file' else dirs_
-    if not only_sub:
-        for dir in dirs_search:
-            obj_return += _get_files_dirs_entity(**kwargs)
+        obj_return = []
+    if depth is None or depth > 1:#None means until end
+        if depth is not None:
+            kwargs['depth'] -= 1
+        for d in dirs_search:
+            kwargs_t = kwargs.copy()
+            kwargs_t['path_rel'] = d
+            obj_return += _get_files_dirs_entity(**kwargs_t)
 
     return obj_return
 
-def get_files(path_rel='',path_root='',  filter_=None, only_sub=True, sort=None, sort_reverse=None, sort_number=False, suffix=None):
+def get_files(path_rel='',path_root='',  filter_=None, depth=1, only_last_depth=False, sort=None, sort_reverse=None, sort_number=False, suffix=None):
     '''
     :param filter_:a function returns true or false. e.g. lamabda filename: filename.__contains__('xxx')
     '''
@@ -231,8 +238,8 @@ def get_files(path_rel='',path_root='',  filter_=None, only_sub=True, sort=None,
         kwargs.update( {f'{vname}': locals()[vname]} )
     return _get_files_dirs( **kwargs, type='file' )
 
-
-def get_dirs(path_rel='', path_root='',  filter_=None, only_sub=True, dir_end='', sort=None, sort_reverse=None, sort_number=False, suffix=None):
+#TODO contains not contains
+def get_dirs(path_rel='', path_root='', filter_=None, depth=1, only_last_depth=False, dir_end='', sort=None, sort_reverse=None, sort_number=False, suffix=None):
     '''
     :param filter_:a function returns true or false. e.g. lamabda filename: filename.__contains__('xxx')
     '''
@@ -244,7 +251,8 @@ def get_dirs(path_rel='', path_root='',  filter_=None, only_sub=True, dir_end=''
 # get_files(path_root='/media/d/e/et/baselines/model/clipped_type=kl2clip,cliprange=0.2,delta_kl=None,hidden_sizes=128,num_sharing_layers=0,ac_fn=relu,reward_scale=5.0/HalfCheetah-v2,seed=559,policy_type=MlpPolicyMy,explore_timesteps=0,explore_additive_threshold=None,explore_additive_rate=0,coef_predict_task=0/advs', sort=True, sort_number=True)
 # )
 # exit()
-
+# print(get_dirs(path_root='/media/d/e/et/baselines/t/a1', depth=2,only_last_depth=True))
+# exit()
 import pickle
 from warnings import warn
 
@@ -385,12 +393,12 @@ def check_safe_path(path, confirm=True, depth=4, require_not_containsub=True, na
     '''
     If the depth of the path is [depth], and it does not contain sub directory (if require_not_containsub is True)
     '''
-    print( f'check:{path}' )
+    # print( f'check:{path}' )
     depth_min = 4
     assert depth >= depth_min, f'depth is at least {depth_min}, please modfiy your code for calling check_safe_path()'
     assert re.match(
         ''.join([ "^(", os.environ['HOME'], "|", "/media)(/[^/]+){",str(depth-1),",}" ])
-        ,path), f'At least operate {depth}-th depth sub-directory!'
+        ,path), f'At least operate {depth}-th depth sub-directory!\n{path}'
     contents = ''
     if not os.path.isfile( path ):
         dirs = get_dirs(path, dir_end='/')
@@ -413,14 +421,14 @@ def check_safe_path(path, confirm=True, depth=4, require_not_containsub=True, na
 def safe_move( src, dst, **kwargs ):
     if check_safe_path(src, **kwargs, name='Move'):
         shutil.move(src, dst)
-        print(f"Moved '{src}' \nto '{dst}'")
+        print(f"Moved:\n{src}\nto:\n{dst}")
         return True
     print(f"Cancel moving file '{src}'")
     return False
 
 def safe_delete(path, **kwargs):
     if check_safe_path( path, **kwargs, name='Delete' ):
-        print(f"Deleted '{path}'")
+        print(f"Deleted:\n{path}")
         shutil.rmtree( path )
         return True
     print('Cancel rm file')
