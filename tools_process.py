@@ -7,7 +7,110 @@ import subprocess
 import os
 
 
-def run_script_parallel(scipt, args_default={}, args_unassembled_all: dict=None, args_assembled_all:list=[], n=1):
+
+def args_NameAndValues2args_list(args_NameAndValues:dict, args_default:dict={}, args_list = []):
+    '''
+    This function will do the following three things:
+    1. Make product for args_NameAndValues and merge it into args_list;
+    2. Merge args_default into each group of args;
+    3. Merge specified settting into each group of args;
+    An example:
+    INPUT:
+    args_NameAndValues = dict(
+        clipped_type = ['ratio'],
+        clippingrange= [0.2,0.3],
+        env = dict(
+            HalfCheetah=dict(ac_fn='relu'),
+            Humanoid=dict(num_timesteps=int(2e7))
+        )
+    )
+    OUTPUT:
+    {'clipped_type': 'ratio', 'clippingrange': 0.2, 'env': 'HalfCheetah', 'ac_fn': 'relu'}
+{'clipped_type': 'ratio', 'clippingrange': 0.2, 'env': 'Humanoid', 'num_timesteps': 20000000}
+{'clipped_type': 'ratio', 'clippingrange': 0.3, 'env': 'HalfCheetah', 'ac_fn': 'relu'}
+{'clipped_type': 'ratio', 'clippingrange': 0.3, 'env': 'Humanoid', 'num_timesteps': 20000000}
+    ]
+    '''
+
+    ''' 
+    1. Translate the value of key 'env' into 
+        env = [ 'HalfCheetah', 'Humanoid' ]
+    2. Copy specified settings into a new variable setting_specified_all
+        setting_specified_all = dict(
+            env = dict(
+                HalfCheetah=dict(ac_fn='relu')
+                Humanoid=dict(num_timesteps=int(2e7)),
+            )
+        )
+    '''
+    setting_specified_all = {}
+    for argname, argvalue in args_NameAndValues.items():
+        if isinstance( argvalue, dict ):#This means that it is speicified settings
+            setting_specified_all[argname] = argvalue
+            args_NameAndValues[argname] = list(argvalue.keys())
+
+    # args_values = tools.multiarr2meshgrid(args_NameAndValues.values())
+    import itertools
+    args_values = itertools.product( * args_NameAndValues.values() )
+    # for ind in range(args_values.shape[0]):
+        # args_value = args_values[ind]
+    for _, args_value in enumerate(args_values):
+        args = {}
+        for ind_key, argname in enumerate(args_NameAndValues.keys()):
+            args[argname] = args_value[ind_key]
+        args_list.append(args)
+
+    for ind in range(len(args_list)):
+
+        args_assembled = args_list[ind]
+        # Copy args_default
+        args = args_default.copy()
+        args.update(args_assembled)
+
+        # Copy settings_specified
+        '''
+        Update the setting with the specified value:
+        The preprocessed value are:
+            args = dict(
+                    clipped_type='ratio', clippingrange=0.2,
+                    env='HalfCheetah'
+                )
+            settings_specified = dict(
+                    env = dict(
+                        HalfCheetah=dict(ac_fn='relu')
+                        Humanoid=dict(num_timesteps=int(2e7)),
+                    )
+                )
+        The processed value are:
+            args = dict(
+                    clipped_type='ratio', clippingrange=0.2,
+                    env='HalfCheetah',
+                    ac_fn='relu'
+                )
+        '''
+        for argname, setting_speicified in setting_specified_all.items():
+            args.update(  setting_speicified[ args[argname] ] )
+
+        args_list[ind] = args
+    return args_list
+
+# if __name__ == '__main__':
+#     args_NameAndValues = dict(
+#         clipped_type = ['ratio'],
+#         clippingrange= [0.2,0.3],
+#         env = dict(
+#             HalfCheetah=dict(ac_fn='relu'),
+#             Humanoid=dict(num_timesteps=int(2e7))
+#         )
+#     )
+#     args_list = args_NameAndValues2args_list( args_NameAndValues )
+#     for args in args_list:
+#         print(args)
+#     exit()
+
+
+
+def run_script_parallel(script,  args_NameAndValues: dict=None, args_default:dict={}, args_list:list=[], n=1):
     '''
     priority: args_default < args_dict_unassembled = args_assembled < args_specifies
     The low priority defined args would be overwritten by high priority defined args
@@ -26,51 +129,32 @@ def run_script_parallel(scipt, args_default={}, args_unassembled_all: dict=None,
                 HalfCheetah=dict(ac_fn='relu')
                 Humanoid=dict(num_timesteps=int(2e7)),
             )
+            alg_args = dict(
+                SARSA_lambda=dict(n=[1,2,3])
+            )
         )
+        For env=HalfCheetah, we use ac_fn=relu;
+        and for env=Humanoid, we use num_timesteps=int(2e7);
     '''
 
-    assert isinstance(args_assembled_all, list)
-
-    # assemble args_unassembled_all
-    args_specified = {}
-    if args_unassembled_all is not None:
-        # specified values
-        for argname, arg_value_specifiedargs in args_unassembled_all.items():
-            if isinstance( arg_value_specifiedargs, dict ):
-                args_specified[argname] = arg_value_specifiedargs
-                args_unassembled_all[argname] = list(arg_value_specifiedargs.keys())
-
-        # 把dict里所有数组进行排列组合
-        args_values = tools.multiarr2meshgrid(args_unassembled_all.values())
-        for ind in range(args_values.shape[0]):
-            args_unassembled = {}
-            args_value = args_values[ind]
-            for ind_key, argname in enumerate(args_unassembled_all.keys()):
-                args_unassembled[argname] = args_value[ind_key]
-            args_assembled_all.append(args_unassembled)
-
+    assert isinstance(args_list, list)
+    args_list = args_NameAndValues2args_list( args_NameAndValues, args_default, args_list  )
     args_call_all = []
-    args_call_base = ['python', '-m', scipt]
+    args_call_base = ['python', '-m', script]
     print( ' '.join(args_call_base) )
-    for ind, args_assembled in enumerate(args_assembled_all):
-        # 复制默认参数
-        args = args_default.copy()
-
-        # 组合后的参数
-        args.update(args_assembled)
-
-        # 把特殊的声明复制进来
-        for argname, arg_value_specifiedargs in args_specified.items():
-            args.update(  arg_value_specifiedargs[ args[argname] ] )
-
-        # 转换为参数形式
+    for ind, args in enumerate(args_list):
         args_call = args_call_base.copy()
         args_call_str = []
         for argname, arg_value in args.items():
-            args_call += [f'--{argname}', str(arg_value)]
-            args_call_str += [ f'-{argname}', tools.colorize( str(arg_value) , 'green' )  ]
+            if isinstance( arg_value, dict ):
+                import json
+                arg_value = json.dumps(arg_value, separators=(',',':'))
+            else:
+                arg_value = str(arg_value)
+            args_call += [f'--{argname}', arg_value]
+            args_call_str += [ tools.colorize(f'-{argname}', color='black', bold=False), tools.colorize( str(arg_value) , 'green', bold=True )  ]
         print( ' '.join(args_call_str) )
-        args_call_all.append( (args_call, ind, len(args_assembled_all)))
+        args_call_all.append( (args_call, ind, len(args_list)))
     print( f'PROCESS COUNT: {len(args_call_all)}' )
     # exit()
     #TODO: log
@@ -94,7 +178,7 @@ def judge_continue(file_path, keys):
 
 def start_process(args_info):
     args, ind, n_all = args_info
-    print( tools.colorize( f'Process: {ind}/{n_all}', 'blue' ))
+    print( tools.colorize( f'Process: {ind+1}/{n_all}', 'blue' ))
     keys_start = ['continue', ]
     continue_ = judge_continue(file_path=os.path.join(os.getcwd()), keys=keys_start)
     if not continue_:

@@ -7,8 +7,8 @@ from gym.spaces.box import Box
 
 from baselines import bench
 from baselines.common.atari_wrappers import wrap_deepmind
-import roboschool
-from osim.env.run import RunEnv
+# import roboschool
+# from osim.env.run import RunEnv
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 
@@ -36,7 +36,7 @@ def make_env(env_id, seed, rank=0, log_dir=None, *args, **kwargs):
         if env_id == 'Run':
             env = RunEnv(*args, **kwargs)
         else:
-            env = gym.make(env_id)
+            env = gym.make(env_id.replace('-v1','-v2'))
         env.seed(seed + rank)
         if log_dir is not None:
             env = bench.Monitor(env,

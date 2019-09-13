@@ -29,7 +29,6 @@ class Timer():
 
 
 
-
 class Namespace(object):
     def __init__(self, kw):
         self.__dict__.update(kw)
@@ -95,7 +94,7 @@ def print_refresh(*s):
 
 
 color2num = dict(
-    gray=30,
+    black=30,
     red=31,
     green=32,
     yellow=33,
@@ -114,7 +113,15 @@ def colorize(string, color='red', bold=False, highlight=False):
     attr.append(str(num))
     if bold: attr.append('1')
     return '\x1b[%sm%s\x1b[0m' % (';'.join(attr), string)
+import sys
 
+def print_( string, **kwargs ):
+    if len(kwargs) > 0 :
+        string = colorize( string, **kwargs )
+    print( string )
+
+def warn(s):
+    print_( s, color='magenta' )
 
 @contextmanager
 def timed(msg, print_atend=True, stdout=print):
@@ -256,7 +263,7 @@ def get_dirs(path_rel='', path_root='', filter_=None, depth=1, only_last_depth=F
 import pickle
 from warnings import warn
 
-def json2file(obj, keys_remove=[], dependencies={}, **kwargs):
+def json2file_old(obj, keys_remove=[], dependencies={}, **kwargs):
     obj = obj.copy()
     for arg_key in dependencies.keys():
         for arg_value in dependencies[arg_key].keys():
@@ -275,6 +282,33 @@ def json2file(obj, keys_remove=[], dependencies={}, **kwargs):
         args_str = args_str.replace(s, '')
     return args_str
 
+
+def json2str_file(obj, remove_brace=True, keys_exclude=[] ):
+    return json2str( obj, separators=(',', '='), remove_quotes_key=True, remove_quotes_value=True, remove_brace=remove_brace, keys_exclude=keys_exclude )
+
+
+
+def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_value=True, remove_brace=True, keys_exclude=[], **jsondumpkwargs):
+    obj = obj.copy()
+    for key in keys_exclude:
+        print(key)
+        del obj[key]
+    args_str = json.dumps(obj, separators=separators, **jsondumpkwargs)
+    print(args_str)
+    if remove_brace:
+        args_str = args_str.strip('{')
+        args_str = args_str.strip('}')
+    if remove_quotes_key:
+        import re
+        args_str = re.sub(r'(?<!'+separators[1]+')"(\S*?)"', r'\1', args_str)
+    if remove_quotes_value:
+        import re
+        args_str = re.sub(r'(?<='+separators[1]+')"(\S*?)"', r'\1', args_str)
+    return args_str
+
+# print(json2str( dict(a='11a'), remove_quotes_key=False ))
+# print(json2str_file( dict(a='11a')))
+# exit()
 def load_vars(filename, catchError=False):
     try:
         values = []
@@ -289,7 +323,7 @@ def load_vars(filename, catchError=False):
                     return values
     except Exception as e:
         if catchError:
-            warn( f'Load Error! {filename}' )
+            warn( f'Load Error:\n{filename}' )
             return None
         # raise e
 #

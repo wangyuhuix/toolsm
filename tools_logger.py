@@ -34,8 +34,8 @@ def unflatten(flattened, separator='.'):
 
     return result
 
-
-def int2str(i):
+from dotmap import DotMap
+def arg2str(i):
     if isinstance(i, float):
         if float.is_integer(i):
             i = int(i)
@@ -44,21 +44,35 @@ def int2str(i):
     if isinstance(i, int):
         if i >= int(1e4):
             i = f'{i:.0e}'
+    if isinstance(i, DotMap ):
+        i = i.toDict()
+    if isinstance(i, dict):
+        i = tools.json2str_file(i, remove_brace=False)
     return i
 
 # print( int2str(20000) )
 
 
+def arg_parser():
+    """
+    Create an empty argparse.ArgumentParser.
+    """
+    import argparse
+    return argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+
+
 
 def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_project='tmpProject'):
     '''
-    required keys in args: 'force_write','name_group','keys_group'
+    Please add the following keys to the argument:
+        parser.add_argument('--force_write', default=1, type=int)
+        parser.add_argument('--name_group', default='', type=str)
+        parser.add_argument('--keys_group', default=['clipped_type'], type=ast.literal_eval)
+        parser.add_argument('--name_run', default="", type=str)
 
-    parser.add_argument('--force_write', default=1, type=int)
-    parser.add_argument('--name_group', default='tmp', type=str)
-    parser.add_argument('--keys_group', default=['clipped_type'], type=ast.literal_eval)
-
-    root_dir/name_project/dir_type/name_group/name_task
+    The final log_path is:
+        root_dir/name_project/dir_type/[key_group=value,]name_group/[key_normalargs=value]
     root_dir: root dir
     name_project: your project
     dir_type: e.g. log, model
@@ -80,7 +94,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     for i,key in enumerate(args.keys_group):
         if i>0:
             name_key_group += SPLIT
-        name_key_group += f'{key}={int2str(args[key])}'
+        name_key_group += f'{key}={arg2str(args[key])}'
 
     args.name_group = name_key_group + (SPLIT if name_key_group and args.name_group else '') + args.name_group
 
@@ -97,7 +111,8 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     root_dir = f'{root_dir}/{name_project}'
 
     # ----------- get sub directory -----------
-    keys_exclude.extend(['force_write','name_group','keys_group'])
+    keys_exclude.extend(['force_write','name_group','keys_group', 'name_run'])
+    keys_exclude.extend(args.keys_group)
     if key_first is not None:
         keys_exclude.append(key_first)
     keys_exclude.extend( args.keys_group )
@@ -110,10 +125,15 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     # --- add keys common
     for key in args.keys():
         if key not in keys_exclude:
-            name_task += f'{SPLIT}{key}={int2str(args[key])}'
+            name_task += f'{SPLIT}{key}={arg2str(args[key])}'
 
             # print( f'{key},{type(args_dict[key])}' )
     # name_task += ('' if name_suffix == '' else f'{split}{name_suffix}')
+
+    key = 'name_run'
+    if args.has_key(key) and not args[key] == '':
+        name_task += f'{SPLIT}{key}={arg2str(args[key])}'
+
 
     # ----------------- prepare directory ----------
     def get_dir_full( d_type, suffix='' ):
@@ -245,13 +265,6 @@ def fmt_row(values, widths=None, is_header=False, width_max=30):
 
     return items, widths_new
 
-@unique
-class type(Enum):
-    stdout=0
-    log = 1
-    json = 2
-    csv = 3
-
 DEBUG = 10
 INFO = 20
 WARN = 30
@@ -273,7 +286,7 @@ class OutputFormat(object):
 class CsvOuputFormat(OutputFormat):
     def __init__(self, file):
         self.file = file
-        self.write_header=False
+        self.has_written_header=False
 
     def write_line(self, line):
         pass
@@ -286,13 +299,45 @@ class CsvOuputFormat(OutputFormat):
         self.file.flush()
 
     def write_kvs(self, kvs):
-        if not self.write_header:
+        if not self.has_written_header:
             self.write_items( kvs.keys() )
-            self.write_header = True
+            self.has_written_header = True
         self.write_items(kvs.values())
 
     def close(self):
         self.file.close()
+
+
+class TensorflowOuputFormat(OutputFormat):
+    def __init__(self, file):
+        self.writer = file
+        self.global_step = -1
+
+    def write_line(self, line):
+        pass
+
+    def write_items(self,items):
+        pass
+
+    def write_kvs(self, kvs):
+        import tensorflow as tf
+        if 'global_step' in kvs:
+            global_step = kvs['global_step']
+            del kvs['global_step']
+        else:
+            self.global_step += 1
+            global_step = self.global_step
+
+        summary = tf.Summary()
+        for key, value in kvs.items():
+            summary.value.add( tag=key, simple_value=value )
+        self.writer.add_summary( summary, global_step=global_step )
+        self.writer.flush()
+
+
+    def close(self):
+        self.writer.close()
+
 
 class LogOutputFormat(OutputFormat):
     def __init__(self, file, output_header_interval=10, width_max=20):
@@ -336,7 +381,6 @@ class LogOutputFormat(OutputFormat):
 
         self.ind += 1
 
-
     def close(self):
         self.file.close()
 
@@ -355,21 +399,37 @@ class JSONOutputFormat(OutputFormat):
     def close(self):
         self.file.close()
 
-def make_output_format(fmt, basename='tmp', append=False):
+@unique
+class type(Enum):
+    stdout=0
+    log = 1
+    json = 2
+    csv = 3
+    tensorflow = 4
+
+
+import os
+def make_output_format(fmt, path='', basename='', append=False):
 
     mode = 'at' if append else 'wt'
     if isinstance(fmt, str):
         fmt = type[fmt]
+
     settings = {
         type.stdout: dict( cls=LogOutputFormat),
         type.log: dict(ext='log', cls=LogOutputFormat),
         type.json: dict(ext='json', cls=JSONOutputFormat),
         type.csv: dict(ext='csv', cls=CsvOuputFormat),
+        type.tensorflow: dict(ext='tensorflow', cls=TensorflowOuputFormat),
     }
     if fmt == type.stdout:
         file = sys.stdout
+    elif fmt == type.tensorflow:
+        import tensorflow as tf
+        file = tf.summary.FileWriter(logdir=path, filename_suffix=f'.{basename}')
     else:
-        file = open(f"{basename}.{settings[fmt]['ext']}", mode)
+        file_path = os.path.join(path, basename)
+        file = open(f"{file_path}.{settings[fmt]['ext']}", mode)
 
     return settings[fmt]['cls']( file )
 
@@ -380,7 +440,15 @@ def make_output_format(fmt, basename='tmp', append=False):
 class Logger(object):
     DEFAULT = None
 
-    def __init__(self, formats, base_name='', append=False):
+    def __init__(self, formats, path='', file_basename='', file_append=False):
+        '''
+        :param formats: formats, e.g.,'log,csv,json'
+        :type formats:str
+        :param file_basename:
+        :type file_basename:
+        :param file_append:
+        :type file_append:
+        '''
         if isinstance(formats, str):
             if ',' in formats:
                 formats = formats.split(',')
@@ -388,21 +456,21 @@ class Logger(object):
                 formats = [formats]
         self.kvs_cache = OrderedDict()  # values this iteration
         self.level = INFO
-        self.base_name = base_name
-        self.output_formats = [make_output_format(f, base_name, append=append) for f in formats]
+        self.base_name = file_basename
+        self.output_formats = [make_output_format(f, path, file_basename, append=file_append) for f in formats]
 
-    def log(self, s, _color=None):
+    def log_str(self, s, _color=None):
         for fmt in self.output_formats:
             fmt.write_line(s)
 
-    def log_keyvalues(self, _color=None, **kwargs):
+    def log_keyvalues(self,  **kwargs):
         self.kvs_cache.update(kwargs)
-        self.dump_keyvalues( _color )
+        self.dump_keyvalues(  )
 
-    def cache_keyvalues(self, **kwargs):
+    def log_keyvalue(self, **kwargs):
         self.kvs_cache.update(kwargs)
 
-    def dump_keyvalues(self, _color=None):
+    def dump_keyvalues(self):
         row_cache = self.kvs_cache
         if len(row_cache) == 0:
             return
@@ -419,14 +487,14 @@ class Logger(object):
             fmt.close()
 
 Logger.DEFAULT = Logger(formats=[type.stdout])
-def log(args):
-    return Logger.DEFAULT.log(args)
+def logs_str(args):
+    return Logger.DEFAULT.log_str(args)
 
 def log_keyvalues(**kwargs):
     return Logger.DEFAULT.log_keyvalues(**kwargs)
 
 def cache_keyvalues( **kwargs):
-    Logger.DEFAULT.cache_keyvalues(**kwargs)
+    Logger.DEFAULT.log_keyvalue(**kwargs)
 
 def dump_keyvalues():
     return Logger.DEFAULT.dump_keyvalues()
@@ -434,17 +502,18 @@ def dump_keyvalues():
 
 def _demo():
 
-    dir = "/tmp/testlogging1"
-    l = Logger(dir=dir, formats=['stdout', 'csv', 'log'], filename='aa')
+    # dir = "/tmp/a"
+    l = Logger( formats='stdout,tensorflow', path='/tmp/a', file_basename='aa')
     #l.width_log = [3,4]
     for i in range(11):
-        l.log_row(a=10**i,b=2)
+        l.log_keyvalues(a=i,b=i*2)
     #l.dumpkvs(1)
     exit()
 
 
 if __name__ == "__main__":
     _demo()
+    exit()
 
 
 
@@ -456,7 +525,7 @@ class LogTime():
         self.dict = {}
         self.interval_showtitle = 10#np.clip( args.interval_iter_save, 10, 100  )
         self.logger = Logger(dir=path_logger, formats=[type.csv], filename=name,
-                             append=False, width_kv=20, width_log=20)
+                             file_append=False, width_kv=20, width_log=20)
 
     def __call__(self, name):
         self.dict[ name ] = time.time() - self.time
