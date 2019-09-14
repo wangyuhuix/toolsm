@@ -66,17 +66,19 @@ def arg_parser():
 def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_project='tmpProject'):
     '''
     Please add the following keys to the argument:
-        parser.add_argument('--force_write', default=1, type=int)
-        parser.add_argument('--name_group', default='', type=str)
+        parser.add_argument('--mode', default='', type=str)
         parser.add_argument('--keys_group', default=['clipped_type'], type=ast.literal_eval)
+        parser.add_argument('--name_group', default='', type=str)
         parser.add_argument('--name_run', default="", type=str)
 
     The final log_path is:
-        root_dir/name_project/dir_type/[key_group=value,]name_group/[key_normalargs=value]
+        root_dir/name_project/dir_type/[key_group=value,]name_group/[key_normalargs=value]name_run
     root_dir: root dir
     name_project: your project
     dir_type: e.g. log, model
     name_group: for different setting, e.g. hyperparameter or just for test
+
+    New version: parser.add_argument('--mode', default='', type=str) #append, overwrite, finish_then_exit_else_overwrite, exist_then_exit
     '''
     SPLIT = ','
     from dotmap import DotMap
@@ -86,7 +88,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
         args = DotMap(args)
 
     assert isinstance(args, DotMap)
-    force_write = args.force_write
+    mode = args.mode
 
 
     # ---------------- get name_group -------------
@@ -111,16 +113,17 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     root_dir = f'{root_dir}/{name_project}'
 
     # ----------- get sub directory -----------
-    keys_exclude.extend(['force_write','name_group','keys_group', 'name_run'])
+    keys_exclude.extend(['mode','name_group','keys_group', 'name_run'])
     keys_exclude.extend(args.keys_group)
     if key_first is not None:
         keys_exclude.append(key_first)
     keys_exclude.extend( args.keys_group )
     # --- add first key
     if key_first is None:
-        key_first = list(args.keys())[0]
+        key_first = list(set(args.keys()).difference( set(keys_exclude) )) [0]
     keys_exclude.append(key_first)
-    name_task = args[key_first]
+    key = key_first
+    name_task = f'{key}={arg2str(args[key])}'
 
     # --- add keys common
     for key in args.keys():
@@ -136,8 +139,16 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
 
 
     # ----------------- prepare directory ----------
-    def get_dir_full( d_type, suffix='' ):
-        return f'{root_dir}/{d_type}/{args.name_group}/{name_task}{suffix}'
+    def get_dir_full( d_type, suffix='', print_root=True, print_dirtype=True ):
+        paths = []
+        if print_root:
+            paths.append( root_dir )
+        if print_dirtype:
+            paths.append( d_type )
+
+        paths.extend([ args.name_group, f'{name_task}{suffix}'])
+        return os.path.join( *paths )
+
 
     dirs_full = dict()
     for d_type in dirs_type:
@@ -147,7 +158,13 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
         setattr( args, f'{d_type}_dir', dirs_full[d_type] )
     # exit()
     # ----- Move Dirs
-    if np.any( [osp.exists( d ) and bool(os.listdir(d))  for d in dirs_full.values() ]):  # 如果文件夹存在且不为空，则转移
+    EXIST_dir = False
+    for d in dirs_full.values():
+        if osp.exists(d) and bool(os.listdir(d)):
+            print( 'Exist directory\n{dirs_full.values()}\n' )
+            EXIST_dir = True
+            break
+    if EXIST_dir:  # 如果"目标文件夹存在且不为空",则（根据要求决定）是否将其转移
         # print(
         #     f"Exsits sub directory: {name_task} in {root_dir} \nMove to discard(y or n)?",
         #     end='')
@@ -158,8 +175,8 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
         #     exit()
         # else:
         #     cmd = input()
-        cmd = 'y'
-        if cmd == 'y':
+        flag_move_dir = 'y'
+        if flag_move_dir == 'y':
             for i in itertools.count():
                 if i == 0:
                     suffix = ''
@@ -172,36 +189,39 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
                 if not np.any( [osp.exists( d ) for d in dirs_full_discard.values() ]):
                     break
 
-            print(tools.colorize(f"Going to move \n{name_task} \n{name_task}{suffix}\n"+f"Confirm move(y or n)?", 'red'), end='')
-            if force_write is None:
-                cmd = 'n'
-                print(f'Do not move and use old directory (auto by force_write={force_write})')
-            elif force_write > 0:
-                cmd = 'y'
-                print(f'y (auto by force_write={force_write})')
-            elif force_write < 0:
-                cmd = 'n'
-                print(f'n and exit() (auto by force_write={force_write})')
+            print(tools.colorize(f"Going to move \n{ get_dir_full( d_type ) }\nto \n{get_dir_full( f'{d_type}_del', suffix=suffix )}\n"+f"Confirm move(y or n)?", 'red'), end='')
+            print(f'mode={mode}. ', end='')
+            if mode == 'append':
+                flag_move_dir = 'n'
+                print(f'(Append to old directory)')
+            elif mode == 'overwrite':#直接覆盖
+                flag_move_dir = 'y'
+            elif mode == 'finish_then_exit_else_overwrite':
+                if np.any( [ osp.exists( get_finish_file(d) )   for d in dirs_full.values() ]):
+                    flag_move_dir = 'n'
+                    print(f'Exited! Exist file\n{get_finish_file(d)}\nYou can try to rename value of "name_group" or that of "name_run"')
+                    exit()
+                else:
+                    flag_move_dir = 'y'
+            elif mode == 'exist_then_exit':
+                flag_move_dir = 'n'
+                print(f'Exited!\nYou can try to rename value of "name_group" or that of "name_run"')
                 exit()
-            else:
-                cmd = input()
+            else:#mode='ask'
+                flag_move_dir = input()
 
-            if cmd == 'y' \
+            if flag_move_dir == 'y' \
                 and \
                 np.all(tools.check_safe_path( dirs_full[d_mid], confirm=False) for d_type in dirs_type):
                 import shutil
                 for d_type in dirs_type:
                     if osp.exists(dirs_full[d_type]):
-                        print( tools.colorize( f'Move:\n{dirs_full[d_type]}\n To\n {dirs_full_discard[d_type]}','red') )
+                        # print( tools.colorize( f'Move:\n{dirs_full[d_type]}\n To\n {dirs_full_discard[d_type]}','red') )
                         shutil.move(dirs_full[d_type], dirs_full_discard[d_type])#TODO: test if not exist?
-            else:
-                print("You can try to rename 'name_group'")
-                if force_write is not None:
-                    exit()
+                print('Moved!')
+
         else:
-            print("You can try to 'name_group'")
-            if force_write is not None:
-                exit()
+            pass
 
 
     for d_type in dirs_type:
@@ -210,16 +230,26 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     tools.save_json( os.path.join(args.log_dir, 'args.json'), args.toDict() )
     return args
 
+def get_finish_file(path):
+    return os.path.join(f'{path}', '.finish_indicator')
+
+def finish_dir(path):
+    with open(get_finish_file(path), mode='w'):
+        pass
 
 
-"""
+def tes_prepare_dirs():
+    args = dict(
+        mode = 'exist_then_exit',#append, overwrite, finish_then_exit_else_overwrite, exist_then_exit
+        a = 1,
+        b=2,
+        keys_group = ['a'],
+        name_group = '',
+    )
+    prepare_dirs( args, name_project='tes_prepare_dirs' )
+    exit()
 
-See README.md for a description of the logging API.
-
-OFF state corresponds to having Logger.CURRENT == Logger.DEFAULT
-ON state is otherwise
-
-"""
+# tes_prepare_dirs()
 
 from collections import OrderedDict
 import os
@@ -457,6 +487,7 @@ class Logger(object):
         self.kvs_cache = OrderedDict()  # values this iteration
         self.level = INFO
         self.base_name = file_basename
+        self.path = path
         self.output_formats = [make_output_format(f, path, file_basename, append=file_append) for f in formats]
 
     def log_str(self, s, _color=None):
@@ -508,6 +539,7 @@ def _demo():
     for i in range(11):
         l.log_keyvalues(a=i,b=i*2)
     #l.dumpkvs(1)
+    l.close()
     exit()
 
 
