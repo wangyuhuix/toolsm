@@ -161,9 +161,8 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     EXIST_dir = False
     for d in dirs_full.values():
         if osp.exists(d) and bool(os.listdir(d)):
-            print( 'Exist directory\n{dirs_full.values()}\n' )
+            print( f'Exist directory\n{d}\n' )
             EXIST_dir = True
-            break
     if EXIST_dir:  # 如果"目标文件夹存在且不为空",则（根据要求决定）是否将其转移
         # print(
         #     f"Exsits sub directory: {name_task} in {root_dir} \nMove to discard(y or n)?",
@@ -322,9 +321,11 @@ class CsvOuputFormat(OutputFormat):
         pass
 
     def write_items(self,items):
-        for item in items:
+
+        for ind, item in enumerate(items):
             self.file.write(str(item))
-            self.file.write('\t')
+            if ind < len(items)-1:
+                self.file.write('\t')
         self.file.write('\n')
         self.file.flush()
 
@@ -353,14 +354,14 @@ class TensorflowOuputFormat(OutputFormat):
         import tensorflow as tf
         if 'global_step' in kvs:
             global_step = kvs['global_step']
-            del kvs['global_step']
         else:
             self.global_step += 1
             global_step = self.global_step
 
         summary = tf.Summary()
         for key, value in kvs.items():
-            summary.value.add( tag=key, simple_value=value )
+            if key != 'global_step':
+                summary.value.add( tag=key, simple_value=value )
         self.writer.add_summary( summary, global_step=global_step )
         self.writer.flush()
 
@@ -534,10 +535,10 @@ def dump_keyvalues():
 def _demo():
 
     # dir = "/tmp/a"
-    l = Logger( formats='stdout,tensorflow', path='/tmp/a', file_basename='aa')
+    l = Logger( formats='stdout,tensorflow,csv', path='/tmp/a', file_basename='aa')
     #l.width_log = [3,4]
-    for i in range(11):
-        l.log_keyvalues(a=i,b=i*2)
+    for i in range(9):
+        l.log_keyvalues(global_step=i, x=i )
     #l.dumpkvs(1)
     l.close()
     exit()

@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 
 
 
-def set_postion(fig=None, x=None, y=None):
+def set_position(fig=None, x=None, y=None):
     if fig is None:
         fig = plt.gcf()
     figManager = fig.canvas.manager.window

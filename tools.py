@@ -288,16 +288,28 @@ def json2str_file(obj, remove_brace=True, keys_exclude=[] ):
 
 
 
-def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_value=True, remove_brace=True, keys_exclude=[], **jsondumpkwargs):
-    obj = obj.copy()
-    for key in keys_exclude:
-        print(key)
-        del obj[key]
+def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_value=True, remove_brace=True, keys_include=None, keys_exclude=None, **jsondumpkwargs):
+
+    if isinstance(keys_include, list):
+        obj_ori = obj
+        obj = dict()
+        for key in keys_include:
+            obj[key] = obj_ori[key]
+    else:
+        obj = obj.copy()
+
+    if isinstance(keys_exclude, list):
+        for key in keys_exclude:
+            del obj[key]
+
     args_str = json.dumps(obj, separators=separators, **jsondumpkwargs)
-    print(args_str)
+    # print(args_str)
     if remove_brace:
-        args_str = args_str.strip('{')
-        args_str = args_str.strip('}')
+        args_str = args_str.strip()
+        if args_str[0] == '{':
+            args_str = args_str[1:]
+        if args_str[-1] == '}':
+            args_str = args_str[:-1]
     if remove_quotes_key:
         import re
         args_str = re.sub(r'(?<!'+separators[1]+')"(\S*?)"', r'\1', args_str)
