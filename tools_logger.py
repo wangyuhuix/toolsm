@@ -66,7 +66,7 @@ def arg_parser():
 def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_project='tmpProject'):
     '''
     Please add the following keys to the argument:
-        parser.add_argument('--mode', default='', type=str)
+        parser.add_argument('--log_dir_mode', default='', type=str)#finish_then_exit_else_overwrite
         parser.add_argument('--keys_group', default=['clipped_type'], type=ast.literal_eval)
         parser.add_argument('--name_group', default='', type=str)
         parser.add_argument('--name_run', default="", type=str)
@@ -78,7 +78,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     dir_type: e.g. log, model
     name_group: for different setting, e.g. hyperparameter or just for test
 
-    New version: parser.add_argument('--mode', default='', type=str) #append, overwrite, finish_then_exit_else_overwrite, exist_then_exit
+    New version: parser.add_argument('--log_dir_mode', default='', type=str) #append, overwrite, finish_then_exit_else_overwrite, exist_then_exit
     '''
     SPLIT = ','
     from dotmap import DotMap
@@ -88,7 +88,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
         args = DotMap(args)
 
     assert isinstance(args, DotMap)
-    mode = args.mode
+    mode = args.log_dir_mode
 
 
     # ---------------- get name_group -------------
@@ -113,7 +113,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     root_dir = f'{root_dir}/{name_project}'
 
     # ----------- get sub directory -----------
-    keys_exclude.extend(['mode','name_group','keys_group', 'name_run'])
+    keys_exclude.extend(['log_dir_mode','name_group','keys_group', 'name_run'])
     keys_exclude.extend(args.keys_group)
     if key_first is not None:
         keys_exclude.append(key_first)
@@ -189,7 +189,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
                     break
 
             print(tools.colorize(f"Going to move \n{ get_dir_full( d_type ) }\nto \n{get_dir_full( f'{d_type}_del', suffix=suffix )}\n"+f"Confirm move(y or n)?", 'red'), end='')
-            print(f'mode={mode}. ', end='')
+            print(f'log_dir_mode={mode}. ', end='')
             if mode == 'append':
                 flag_move_dir = 'n'
                 print(f'(Append to old directory)')

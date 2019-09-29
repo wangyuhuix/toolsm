@@ -452,7 +452,7 @@ def check_safe_path(path, confirm=True, depth=4, require_not_containsub=True, na
         # for content in dirs+files:
         #     contents += f'\n       {content}'
         if require_not_containsub:
-            assert len(dirs) == 0
+            assert len(dirs) == 0 and len(files) == 0
         contents = f'{len(dirs)} dirs and {len(files)} files'
     if confirm:
         print(f"{name} path '{path}'! It contains {contents}\n (y or n)?", end='')

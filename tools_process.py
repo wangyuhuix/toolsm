@@ -110,7 +110,7 @@ def args_NameAndValues2args_list(args_NameAndValues:dict, args_default:dict={}, 
 
 
 
-def run_script_parallel(script,  args_NameAndValues: dict=None, args_default:dict={}, args_list:list=[], n=1):
+def run_script_parallel(script,  args_NameAndValues: dict=None, args_default:dict={}, args_list:list=[], n=1, debug=False):
     '''
     priority: args_default < args_dict_unassembled = args_assembled < args_specifies
     The low priority defined args would be overwritten by high priority defined args
@@ -156,6 +156,8 @@ def run_script_parallel(script,  args_NameAndValues: dict=None, args_default:dic
         print( ' '.join(args_call_str) )
         args_call_all.append( (args_call, ind, len(args_list)))
     print( f'PROCESS COUNT: {len(args_call_all)}' )
+    if debug:
+        exit()
     # exit()
     #TODO: log
     with tools.timed(f'len(args_all):{len(args_call_all)}, N_PARALLEL:{n}', print_atend=True):
