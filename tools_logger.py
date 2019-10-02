@@ -61,6 +61,15 @@ def arg_parser():
     return argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 
+def get_logger_dir(name_project=None):
+    if tools.ispc('xiaoming'):
+        root_dir = '/media/d/e/et'
+    else:
+        root_dir = f"{os.environ['HOME']}/xm/et"
+    if name_project is not None:
+        root_dir = f'{root_dir}/{name_project}'
+    return root_dir
+
 
 
 def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_project='tmpProject'):
@@ -306,7 +315,11 @@ class OutputFormat(object):
     def write_kvs(self, kvs):
         pass
 
-    def write_line(self, line):
+    def write_str(self, s):
+        pass
+
+
+    def _write_items(self, items):
         pass
 
     def close(self):
@@ -317,11 +330,7 @@ class CsvOuputFormat(OutputFormat):
         self.file = file
         self.has_written_header=False
 
-    def write_line(self, line):
-        pass
-
-    def write_items(self,items):
-
+    def _write_items(self, items):
         for ind, item in enumerate(items):
             self.file.write(str(item))
             if ind < len(items)-1:
@@ -331,9 +340,9 @@ class CsvOuputFormat(OutputFormat):
 
     def write_kvs(self, kvs):
         if not self.has_written_header:
-            self.write_items( kvs.keys() )
+            self._write_items( kvs.keys() )
             self.has_written_header = True
-        self.write_items(kvs.values())
+        self._write_items(kvs.values())
 
     def close(self):
         self.file.close()
@@ -343,12 +352,6 @@ class TensorflowOuputFormat(OutputFormat):
     def __init__(self, file):
         self.writer = file
         self.global_step = -1
-
-    def write_line(self, line):
-        pass
-
-    def write_items(self,items):
-        pass
 
     def write_kvs(self, kvs):
         import tensorflow as tf
@@ -386,13 +389,13 @@ class LogOutputFormat(OutputFormat):
         #     valstr = '%-8.3g' % (val,) if hasattr(val, '__float__') else val
         #     key2str[self._truncate(key,width_max)] = self._truncate(valstr, width_max)
 
-    def write_line(self, line):
-        self.file.write( line+'\n' )
+    def write_str(self, s):
+        self.file.write( s+'\n' )
         self.file.flush()
 
-    def write_items(self, items, widths=None):
-        line = "   ".join(items)
-        self.write_line( line )
+    def _write_items(self, items, widths=None):
+        line = "  ".join(items)#column gap
+        self.write_str( line )
         # --- update widths
         if widths is not None:
             if self.widths is None:
@@ -405,10 +408,10 @@ class LogOutputFormat(OutputFormat):
         # write header
         if self.ind % self.output_header_interval == 0:
             items, widths = fmt_row(kvs.keys(), self.widths, is_header=True,width_max=self.width_max)
-            self.write_items(items, widths  )
+            self._write_items(items, widths  )
         # write body
         items, widths = fmt_row(kvs.values(), self.widths, width_max=self.width_max)
-        self.write_items(items, widths  )
+        self._write_items(items, widths  )
 
         self.ind += 1
 
@@ -471,7 +474,7 @@ def make_output_format(fmt, path='', basename='', append=False):
 class Logger(object):
     DEFAULT = None
 
-    def __init__(self, formats, path='', file_basename='', file_append=False):
+    def __init__(self, formats=[type.stdout], path='', file_basename=None, file_append=False):
         '''
         :param formats: formats, e.g.,'log,csv,json'
         :type formats:str
@@ -480,24 +483,31 @@ class Logger(object):
         :param file_append:
         :type file_append:
         '''
-        if isinstance(formats, str):
-            if ',' in formats:
-                formats = formats.split(',')
-            else:
-                formats = [formats]
+        formats = tools.str2list(formats)
         self.kvs_cache = OrderedDict()  # values this iteration
         self.level = INFO
+        if file_basename is None:
+            file_basename = tools.time_now_str_filename()
         self.base_name = file_basename
         self.path = path
+        tools.print_( f'log:\n{path}\n{file_basename}'  ,color='green' )
         self.output_formats = [make_output_format(f, path, file_basename, append=file_append) for f in formats]
 
     def log_str(self, s, _color=None):
         for fmt in self.output_formats:
-            fmt.write_line(s)
+            fmt.write_str(s)
 
-    def log_keyvalues(self,  **kwargs):
+    def log_keyvalues(self, **kwargs):
+        # assert len(args) <= 2
+        # if len(args) == 2:
+        #     args = {args[0]:args[1]}
+        # if len(args) == 1:
+        #     assert isinstance(args, dict)
+        #     self.kvs_cache.update( args )
+
+
         self.kvs_cache.update(kwargs)
-        self.dump_keyvalues(  )
+        self.dump_keyvalues()
 
     def log_keyvalue(self, **kwargs):
         self.kvs_cache.update(kwargs)
@@ -518,34 +528,34 @@ class Logger(object):
         for fmt in self.output_formats:
             fmt.close()
 
-Logger.DEFAULT = Logger(formats=[type.stdout])
-def logs_str(args):
-    return Logger.DEFAULT.log_str(args)
+# Logger.DEFAULT = Logger(formats=[type.stdout])
+# def logs_str(args):
+#     return Logger.DEFAULT.log_str(args)
+#
+# def log_keyvalues(**kwargs):
+#     return Logger.DEFAULT.log_keyvalues(**kwargs)
+#
+# def cache_keyvalues( **kwargs):
+#     Logger.DEFAULT.log_keyvalue(**kwargs)
+#
+# def dump_keyvalues():
+#     return Logger.DEFAULT.dump_keyvalues()
 
-def log_keyvalues(**kwargs):
-    return Logger.DEFAULT.log_keyvalues(**kwargs)
 
-def cache_keyvalues( **kwargs):
-    Logger.DEFAULT.log_keyvalue(**kwargs)
-
-def dump_keyvalues():
-    return Logger.DEFAULT.dump_keyvalues()
-
-
-def _demo():
+def tes_logger():
 
     # dir = "/tmp/a"
-    l = Logger( formats='stdout,tensorflow,csv', path='/tmp/a', file_basename='aa')
+    l = Logger(formats='stdout,csv', path='/tmp/a', file_basename='aa')
     #l.width_log = [3,4]
-    for i in range(9):
-        l.log_keyvalues(global_step=i, x=i )
+    for i in range(200,30000,100):
+        l.log_keyvalues(global_step=i, **{'x/x1':i*2, 'x/x2':i} )
     #l.dumpkvs(1)
     l.close()
-    exit()
+    # exit()
 
 
 if __name__ == "__main__":
-    _demo()
+    tes_logger()
     exit()
 
 
@@ -573,24 +583,129 @@ class LogTime():
         self.ind += 1
 
 
+def _get_keys(keys):
+    if isinstance(keys, str):
+        keys = keys.strip(',')
+        keys = keys.strip()
+        keys = keys.split(',')
+    return keys
 
+def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='args.json', file_process='proces.csv', read_csv_args=dict( sep=',' ) ):
+    import tools
+    import pandas as pd
+
+    if path_root[-1] == '/':
+        path_root = path_root[:-1]
+
+    paths = tools.get_dirs(path_root, depth=depth, only_last_depth=True)
+    # group_keys = 'alg,alg_args'.split(',')
+
+    keys_dir = _get_keys(keys_dir)
+    keys_fig = _get_keys(keys_fig)
+
+    path_root_new = f'{path_root},group'
+
+
+
+    import os.path as osp
+    # if osp.exists(path_root_new):
+    #     tools.safe_delete(path_root_new, require_not_containsub=False)
+
+    tools.mkdir(path_root_new)
+    from dotmap import DotMap
+
+
+
+    import numpy as np
+
+    # key_x = 'global_step'
+    # key_y = 'reward_accumulate'
+
+    import re
+    results_group = DotMap()
+    usefig = len( keys_fig ) > 0
+    for p in paths:
+        # print(p)
+        args = tools.load_json(f'{p}/{file_args}')
+        print(p)
+        process = pd.read_csv(f'{p}/{file_process}', **read_csv_args)
+        # print(process.columns.values)
+        # if not 'global_step' in process.columns.values:
+        #     tools.safe_delete( p, confirm=False )
+        #     continue
+
+        # print('*******')
+        group_dir = tools.json2str(args, separators=(',', '='), keys_include=keys_dir, remove_quotes_key=True,
+                               remove_brace=True)
+
+
+
+        if not usefig:
+            if group_dir not in results_group.keys():
+                results_group[group_dir] = DotMap(global_step=process.loc[:, key_x], values_all=[])
+            else:
+                assert np.all(results_group[group_dir].global_step == process.loc[:, key_x])
+            obj = results_group[group_dir]
+        else:#contains sub figure
+            group_fig = tools.json2str(args, separators=(',', '='), keys_include=keys_fig, remove_quotes_key=True,
+                                       remove_brace=True)
+            if group_dir not in results_group.keys():
+                results_group[group_dir] = dict()
+            if group_fig not in results_group[group_dir].keys():
+                results_group[group_dir][group_fig] = DotMap(global_step=process.loc[:, key_x], values_all=[])
+            else:
+                # assert np.all(results_group[group_dir][group_fig].global_step == process.loc[:, key_x])
+                pass
+            obj = results_group[group_dir][group_fig]
+
+        obj.values_all.append(process.loc[:, key_y])
+
+    for group_dir in results_group.keys():
+        path_log = f'{path_root_new}/{group_dir}'
+        if osp.exists(path_log):
+            continue
+
+        logger = Logger('tensorflow,csv', path=path_log, file_basename='group')
+
+        def log_result( _obj, name='' ):
+            values = np.mean(_obj.values_all, axis=0)
+            for ind, global_step in enumerate(_obj.global_step):
+                keyvalues = dict(global_step=global_step)
+                keyvalues[f'{key_y}{name}'] = values[ind]
+                logger.log_keyvalues(**keyvalues)
+
+        if not usefig:
+            log_result( results_group[group_dir] )
+        else:
+            for group_fig in results_group[group_dir].keys():
+                log_result(results_group[group_dir][group_fig], f'/{group_fig}' )
+
+
+        logger.close()
+
+    tools.print_(f'Written grouped result to {path_root_new}', color='green')
+
+
+def tes_groupresult():
+    pass
+    group_result( '/media/d/e/et/baselines/log_tune,tidy.eval', depth=3, key_x='total_timesteps', key_y='eprewmean_eval', keys_dir='cliptype,clipargs', keys_fig='env', file_process='progress.csv' )
 
 
 if __name__ == '__main__':
-
-    import argparse
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    # parser.add_argument('--env', help='environment ID', type=str, default='Reacher-v2')
-    parser.add_argument('--env', help='environment ID', type=str, default='Swimmer-v2')
-    parser.add_argument('--seed', help='RNG seed', type=int, default=0)
-    parser.add_argument('--num-timesteps', type=int, default=int(1e6))
-    parser.add_argument('--play', default=False, action='store_true')
-    parser.add_argument('--clipped-type', default='origin', type=str)
-
-    parser.add_argument('--name_group', default='', type=str)
-    parser.add_argument('--force-write', default=1, type=int)
-
-    args = parser.parse_args()
-    prepare_dirs( args, args_dict )
-    exit()
+    tes_groupresult()
+    # import argparse
+    # parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    # # parser.add_argument('--env', help='environment ID', type=str, default='Reacher-v2')
+    # parser.add_argument('--env', help='environment ID', type=str, default='Swimmer-v2')
+    # parser.add_argument('--seed', help='RNG seed', type=int, default=0)
+    # parser.add_argument('--num-timesteps', type=int, default=int(1e6))
+    # parser.add_argument('--play', default=False, action='store_true')
+    # parser.add_argument('--clipped-type', default='origin', type=str)
+    #
+    # parser.add_argument('--name_group', default='', type=str)
+    # parser.add_argument('--force-write', default=1, type=int)
+    #
+    # args = parser.parse_args()
+    # prepare_dirs( args, args_dict )
+    # exit()
 

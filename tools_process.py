@@ -43,6 +43,7 @@ def args_NameAndValues2args_list(args_NameAndValues:dict, args_default:dict={}, 
             )
         )
     '''
+    assert isinstance(args_list, list)
     setting_specified_all = {}
     for argname, argvalue in args_NameAndValues.items():
         if isinstance( argvalue, dict ):#This means that it is speicified settings
@@ -50,15 +51,15 @@ def args_NameAndValues2args_list(args_NameAndValues:dict, args_default:dict={}, 
             args_NameAndValues[argname] = list(argvalue.keys())
 
     # args_values = tools.multiarr2meshgrid(args_NameAndValues.values())
-    import itertools
-    args_values = itertools.product( * args_NameAndValues.values() )
-    # for ind in range(args_values.shape[0]):
-        # args_value = args_values[ind]
-    for _, args_value in enumerate(args_values):
-        args = {}
-        for ind_key, argname in enumerate(args_NameAndValues.keys()):
-            args[argname] = args_value[ind_key]
-        args_list.append(args)
+    if len( args_NameAndValues )>0:#We need to judge it. Otherwise when args_NameAndValues={}, itertools.product could output {()}
+        import itertools
+        args_values = itertools.product( * args_NameAndValues.values() )
+        for _, args_value in enumerate(args_values):
+            args = {}
+            for ind_key, argname in enumerate(args_NameAndValues.keys()):
+                args[argname] = args_value[ind_key]
+            args_list.append(args)
+
 
     for ind in range(len(args_list)):
 
@@ -110,7 +111,7 @@ def args_NameAndValues2args_list(args_NameAndValues:dict, args_default:dict={}, 
 
 
 
-def run_script_parallel(script,  args_NameAndValues: dict=None, args_default:dict={}, args_list:list=[], n=1, debug=False):
+def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={}, args_list:list=[], n=1, debug=False, log_kwargs=dict(path='/tmp/', file_basename=None) ):
     '''
     priority: args_default < args_dict_unassembled = args_assembled < args_specifies
     The low priority defined args would be overwritten by high priority defined args
@@ -137,34 +138,45 @@ def run_script_parallel(script,  args_NameAndValues: dict=None, args_default:dic
         and for env=Humanoid, we use num_timesteps=int(2e7);
     '''
 
-    assert isinstance(args_list, list)
+
     args_list = args_NameAndValues2args_list( args_NameAndValues, args_default, args_list  )
     args_call_all = []
     args_call_base = ['python', '-m', script]
-    print( ' '.join(args_call_base) )
+    print( 'call command:' , ' '.join(args_call_base) )
+    import json
     for ind, args in enumerate(args_list):
         args_call = args_call_base.copy()
         args_call_str = []
         for argname, arg_value in args.items():
             if isinstance( arg_value, dict ):
-                import json
                 arg_value = json.dumps(arg_value, separators=(',',':'))
             else:
                 arg_value = str(arg_value)
             args_call += [f'--{argname}', arg_value]
             args_call_str += [ tools.colorize(f'-{argname}', color='black', bold=False), tools.colorize( str(arg_value) , 'green', bold=True )  ]
         print( ' '.join(args_call_str) )
-        args_call_all.append( (args_call, ind, len(args_list)))
-    print( f'PROCESS COUNT: {len(args_call_all)}' )
+        args_call_all.append( dict(args_call=args_call, ind=ind, n_total=len(args_list)))
+    # print( f'PROCESS COUNT: {len(args_call_all)}' )
     if debug:
         exit()
     # exit()
     #TODO: log
+
+    # def call_back(*args, **kwargs):
+    #     print(f'completed. args{args}. kwargs{kwargs}')
+    from tqdm import tqdm_gui
+
+    from tools_logger import Logger
+    logger = Logger( formats='log', **log_kwargs )
     with tools.timed(f'len(args_all):{len(args_call_all)}, N_PARALLEL:{n}', print_atend=True):
-        p = Pool(n)
-        p.map(start_process, args_call_all)
-        p.close()
-        p.join()
+        with Pool(n) as p:
+             with tqdm_gui(p.imap_unordered(start_process, args_call_all), total=len(args_call_all)) as processbar:
+                 for info in processbar:
+                     info_str = json.dumps(info, indent=4, separators=(',', ':'))
+                     logger.log_str( info_str )
+
+    logger.close()
+
 
 
 
@@ -178,26 +190,40 @@ def judge_continue(file_path, keys):
     return j[key]
 
 
-def start_process(args_info):
-    args, ind, n_all = args_info
-    print( tools.colorize( f'Process: {ind+1}/{n_all}', 'blue' ))
+def start_process(info):
+    args_call, ind, n_total = info['args_call'], info['ind'], info['n_total']
+    print( tools.colorize( f'Process: {ind+1}/{n_total}', 'blue' ))
     keys_start = ['continue', ]
     continue_ = judge_continue(file_path=os.path.join(os.getcwd()), keys=keys_start)
     if not continue_:
         print('run.json shows stop')
         return
-    finish = False
-    for i in range(10):
+    import time
+    time_start = time.time()
+    for i in range(3):
         try:
-            subprocess.check_call(args)
+            subprocess.check_call(args_call)
+            err_msg = ''
             break
         except Exception as e:
             import time
             seconds_sleep = i*5
-            print(f'An error happened, sleep for {seconds_sleep}s! Exception: {e}')
+            print(
+f'''An error happened, sleep for {seconds_sleep}s!
+args_call:{args_call}
+Exception: {e}''')
             time.sleep(seconds_sleep)
+            err_msg = str(e)
+    info.update( err_msg=err_msg, trial_times=i+1, time_cost=time.time()-time_start )
 
+    return info
 
+def tes_run_script_parallel():
+    run_script_parallel(script='_t',
+        args_list=[dict(i=i) for i in range(10)],
+        n=2,
+        debug=0
+    )
 
 
 class FileLocker:
@@ -223,7 +249,8 @@ class FileLocker:
         # print(f'release file locker {self.__filename}')
         self.release()
 
-if __name__ == '__main__':
+def tes_filelocker():
+
     import tools
     import time
     with FileLocker('t/a.locker'):
@@ -231,4 +258,6 @@ if __name__ == '__main__':
             f.write(tools.time_now_str()+'\n')
         time.sleep(5)
 
+if __name__ == '__main__':
+    tes_run_script_parallel()
     exit()

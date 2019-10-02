@@ -36,6 +36,13 @@ class Namespace(object):
     def todict(self):
         return self.__dict__
 
+def str2list(s_all):
+    if isinstance(s_all, str):
+        s_all = s_all.split(',')
+        s_all = [item.strip() for item in s_all]
+    assert isinstance(s_all, list)
+    return s_all
+
 def mkdir( dir ):
     if not os.path.exists(dir):
         os.mkdir(dir)
