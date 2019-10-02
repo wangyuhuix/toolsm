@@ -554,9 +554,9 @@ def tes_logger():
     # exit()
 
 
-if __name__ == "__main__":
-    tes_logger()
-    exit()
+# if __name__ == "__main__":
+#     tes_logger()
+#     exit()
 
 
 
@@ -627,7 +627,7 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
     for p in paths:
         # print(p)
         args = tools.load_json(f'{p}/{file_args}')
-        print(p)
+        # print(p)
         process = pd.read_csv(f'{p}/{file_process}', **read_csv_args)
         # print(process.columns.values)
         # if not 'global_step' in process.columns.values:
@@ -666,8 +666,9 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
             continue
 
         logger = Logger('tensorflow,csv', path=path_log, file_basename='group')
-
+        logger_log = Logger('log', path=path_log, file_basename='group')
         def log_result( _obj, name='' ):
+            logger_log.log_str( f'name:{name},key:{key_y},len:{len(_obj.values_all)}' )
             values = np.mean(_obj.values_all, axis=0)
             for ind, global_step in enumerate(_obj.global_step):
                 keyvalues = dict(global_step=global_step)
@@ -688,11 +689,14 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
 
 def tes_groupresult():
     pass
-    group_result( '/media/d/e/et/baselines/log_tune,tidy.eval', depth=3, key_x='total_timesteps', key_y='eprewmean_eval', keys_dir='cliptype,clipargs', keys_fig='env', file_process='progress.csv' )
+    # root = '/media/d/e/et/baselines'
+    root = '/media/root/q'
+    group_result( f'{root}/log_tune,tidy.eval', depth=2, key_x='total_timesteps', key_y='eprewmean_eval', keys_dir='cliptype,clipargs', keys_fig='env', file_process='progress.csv', read_csv_args=dict( sep=',' ) )
+    #TODO: read_csv_args=(sep='\t')
 
 
-if __name__ == '__main__':
-    tes_groupresult()
+# if __name__ == '__main__':
+#     tes_groupresult()
     # import argparse
     # parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # # parser.add_argument('--env', help='environment ID', type=str, default='Reacher-v2')

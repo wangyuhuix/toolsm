@@ -200,10 +200,10 @@ def start_process(info):
         return
     import time
     time_start = time.time()
+    err_msgs = []
     for i in range(3):
         try:
             subprocess.check_call(args_call)
-            err_msg = ''
             break
         except Exception as e:
             import time
@@ -213,8 +213,8 @@ f'''An error happened, sleep for {seconds_sleep}s!
 args_call:{args_call}
 Exception: {e}''')
             time.sleep(seconds_sleep)
-            err_msg = str(e)
-    info.update( err_msg=err_msg, trial_times=i+1, time_cost=time.time()-time_start )
+            err_msgs.append( str(e) )
+    info.update( err_msgs=err_msgs, trial_times=i+1, time_cost=time.time()-time_start )
 
     return info
 
