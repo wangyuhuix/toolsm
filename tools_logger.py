@@ -590,7 +590,7 @@ def _get_keys(keys):
         keys = keys.split(',')
     return keys
 
-def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='args.json', file_process='proces.csv', read_csv_args=dict( sep=',' ) ):
+def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='args.json', file_process='proces.csv', read_csv_args=dict( sep=',' ), name=None ):
     import tools
     import pandas as pd
 
@@ -627,7 +627,7 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
     for p in paths:
         # print(p)
         args = tools.load_json(f'{p}/{file_args}')
-        # print(p)
+        print(p)
         process = pd.read_csv(f'{p}/{file_process}', **read_csv_args)
         # print(process.columns.values)
         # if not 'global_step' in process.columns.values:

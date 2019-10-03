@@ -139,6 +139,8 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
     '''
 
 
+    from tools_logger import Logger
+    logger = Logger( formats='log', **log_kwargs )
     args_list = args_NameAndValues2args_list( args_NameAndValues, args_default, args_list  )
     args_call_all = []
     args_call_base = ['python', '-m', script]
@@ -154,9 +156,11 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
                 arg_value = str(arg_value)
             args_call += [f'--{argname}', arg_value]
             args_call_str += [ tools.colorize(f'-{argname}', color='black', bold=False), tools.colorize( str(arg_value) , 'green', bold=True )  ]
+        logger.log_str( json.dumps(args, indent=4, separators=(',', ':')) )
         print( ' '.join(args_call_str) )
         args_call_all.append( dict(args_call=args_call, ind=ind, n_total=len(args_list)))
-    # print( f'PROCESS COUNT: {len(args_call_all)}' )
+    print( f'PROCESS COUNT: {len(args_call_all)}' )
+    logger.log_str(f'PROCESS COUNT: {len(args_call_all)}')
     if debug:
         exit()
     # exit()
@@ -164,15 +168,17 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
 
     # def call_back(*args, **kwargs):
     #     print(f'completed. args{args}. kwargs{kwargs}')
-    from tqdm import tqdm_gui
+    from tqdm import tqdm
+    # import matplotlib
+    # matplotlib.use('TkAgg')#It seems that tqdm_gui oly work for TkAgg mode
 
-    from tools_logger import Logger
-    logger = Logger( formats='log', **log_kwargs )
     with tools.timed(f'len(args_all):{len(args_call_all)}, N_PARALLEL:{n}', print_atend=True):
         with Pool(n) as p:
-             with tqdm_gui(p.imap_unordered(start_process, args_call_all), total=len(args_call_all)) as processbar:
-                 for info in processbar:
+             with tqdm(enumerate(p.imap_unordered(start_process, args_call_all)), total=len(args_call_all)) as processbar:
+                 for ind,info in processbar:
+                     processbar.set_description(f'process')
                      info_str = json.dumps(info, indent=4, separators=(',', ':'))
+                     logger.log_str(f'process:{ind}/{len(args_call_all)}')
                      logger.log_str( info_str )
 
     logger.close()
@@ -192,7 +198,7 @@ def judge_continue(file_path, keys):
 
 def start_process(info):
     args_call, ind, n_total = info['args_call'], info['ind'], info['n_total']
-    print( tools.colorize( f'Process: {ind+1}/{n_total}', 'blue' ))
+    # print( tools.colorize( f'Process: {ind+1}/{n_total}', 'blue' ))
     keys_start = ['continue', ]
     continue_ = judge_continue(file_path=os.path.join(os.getcwd()), keys=keys_start)
     if not continue_:
