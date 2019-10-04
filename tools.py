@@ -198,8 +198,32 @@ def text2texts_ints(text):
 
 import inspect
 
+
+
 # def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, depth=1, only_last_depth=, type='file', dir_end='', sort_reverse=None,  sort_number=False):
 def _get_files_dirs_entity(path_root, path_rel, filter_, depth, only_last_depth, type, dir_end, sort_reverse,  sort_number):
+    '''
+    :param path_root:
+    :type path_root:
+    :param path_rel:
+    :type path_rel:
+    :param filter_: Judge whether to contain this file/dir by its name (not entire path).
+    :type filter_: function
+    :param depth:
+    :type depth:
+    :param only_last_depth:
+    :type only_last_depth:
+    :param type:
+    :type type:
+    :param dir_end:
+    :type dir_end:
+    :param sort_reverse:
+    :type sort_reverse:
+    :param sort_number:
+    :type sort_number:
+    :return:
+    :rtype:
+    '''
     # kwargs = dict(path_root=path_root, path_rel=path_rel, filter_=filter_, only_sub=only_sub, dir_end=dir_end, sort_reverse=sort_reverse, sort_number=sort_number, )
     kwargs = {}
     for vname in inspect.getargspec(_get_files_dirs_entity)[0]:
@@ -207,7 +231,6 @@ def _get_files_dirs_entity(path_root, path_rel, filter_, depth, only_last_depth,
     files = []
     dirs_ = []
     lists = os.listdir(os.path.join(path_root, path_rel))
-
     if sort_reverse is not None or sort_number:
         kwargs_sort = {}
         if sort_reverse is not None:

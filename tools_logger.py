@@ -71,7 +71,7 @@ def get_logger_dir(name_project=None):
     return root_dir
 
 
-
+# TODO: when the dir is running by other thread, we should also exited.
 def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_project='tmpProject'):
     '''
     Please add the following keys to the argument:
@@ -590,6 +590,8 @@ def _get_keys(keys):
         keys = keys.split(',')
     return keys
 
+
+
 def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='args.json', file_process='proces.csv', read_csv_args=dict( sep=',' ), name=None ):
     import tools
     import pandas as pd
@@ -597,7 +599,10 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
     if path_root[-1] == '/':
         path_root = path_root[:-1]
 
-    paths = tools.get_dirs(path_root, depth=depth, only_last_depth=True)
+    paths = tools.get_dirs(path_root, depth=depth, only_last_depth=True, filter_=lambda x: any([  (s not in x) for s in ['notusing'] ]) )
+    # for p in paths:
+    #     print(p)
+
     # group_keys = 'alg,alg_args'.split(',')
 
     keys_dir = _get_keys(keys_dir)
@@ -642,7 +647,7 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
 
         if not usefig:
             if group_dir not in results_group.keys():
-                results_group[group_dir] = DotMap(global_step=process.loc[:, key_x], values_all=[])
+                results_group[group_dir] = DotMap(global_step=process.loc[:, key_x], values_all=[], path_all=[])
             else:
                 assert np.all(results_group[group_dir].global_step == process.loc[:, key_x])
             obj = results_group[group_dir]
@@ -652,13 +657,14 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
             if group_dir not in results_group.keys():
                 results_group[group_dir] = dict()
             if group_fig not in results_group[group_dir].keys():
-                results_group[group_dir][group_fig] = DotMap(global_step=process.loc[:, key_x], values_all=[])
+                results_group[group_dir][group_fig] = DotMap(global_step=process.loc[:, key_x], values_all=[], path_all=[])
             else:
                 # assert np.all(results_group[group_dir][group_fig].global_step == process.loc[:, key_x])
                 pass
             obj = results_group[group_dir][group_fig]
 
         obj.values_all.append(process.loc[:, key_y])
+        obj.path_all.append( p )
 
     for group_dir in results_group.keys():
         path_log = f'{path_root_new}/{group_dir}'
@@ -668,7 +674,8 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
         logger = Logger('tensorflow,csv', path=path_log, file_basename='group')
         logger_log = Logger('log', path=path_log, file_basename='group')
         def log_result( _obj, name='' ):
-            logger_log.log_str( f'name:{name},key:{key_y},len:{len(_obj.values_all)}' )
+            paths = '\n'.join( _obj.path_all )
+            logger_log.log_str( f"name:{name},key:{key_y},len:{len(_obj.values_all)},paths:\n{paths}\n\n" )
             values = np.mean(_obj.values_all, axis=0)
             for ind, global_step in enumerate(_obj.global_step):
                 keyvalues = dict(global_step=global_step)
@@ -684,7 +691,7 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
 
         logger.close()
 
-    tools.print_(f'Written grouped result to {path_root_new}', color='green')
+    tools.print_(f'Written grouped result to:\n{path_root_new}', color='green')
 
 
 def tes_groupresult():
