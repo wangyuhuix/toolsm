@@ -592,7 +592,7 @@ def _get_keys(keys):
 
 
 
-def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='args.json', file_process='proces.csv', read_csv_args=dict( sep=',' ), name=None, force=False ):
+def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='args.json', file_process='proces.csv', read_csv_args=dict( sep=',' ), name=None, overwrite=False):
     import tools
     import pandas as pd
 
@@ -666,10 +666,17 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
         obj.values_all.append(process.loc[:, key_y])
         obj.path_all.append( p )
 
+    del_first_time = True
     for group_dir in results_group.keys():
         path_log = f'{path_root_new}/{group_dir}'
-        if osp.exists(path_log) and not force:
-            continue
+        if osp.exists(path_log):
+            if overwrite:
+                if tools.safe_delete(path_log, confirm=del_first_time):
+                    del_first_time= False
+                else:
+                    continue
+            else:
+                continue
 
         logger = Logger('tensorflow,csv', path=path_log, file_basename='group')
         logger_log = Logger('log', path=path_log, file_basename='group')

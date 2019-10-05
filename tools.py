@@ -465,7 +465,7 @@ def time_now_str_filename():
 
 import shutil
 import re
-def check_safe_path(path, confirm=True, depth=4, require_not_containsub=True, name='Modify'):
+def check_safe_path(path, confirm=True, depth=4, require_not_containsub=False, name='Modify'):
     '''
     If the depth of the path is [depth], and it does not contain sub directory (if require_not_containsub is True)
     '''
