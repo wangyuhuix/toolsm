@@ -630,9 +630,13 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
     results_group = DotMap()
     usefig = len( keys_fig ) > 0
     for p in paths:
-        # print(p)
-        args = tools.load_json(f'{p}/{file_args}')
         print(p)
+        if any(  [(not os.path.exists( f'{p}/{f}' )) for f in [file_args, file_process]] ):
+            tools.warn_( f'{file_args} or {file_process} not exists' )
+            continue
+
+        args = tools.load_json(f'{p}/{file_args}')
+
         process = pd.read_csv(f'{p}/{file_process}', **read_csv_args)
         # print(process.columns.values)
         # if not 'global_step' in process.columns.values:

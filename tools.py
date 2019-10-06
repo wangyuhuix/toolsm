@@ -127,7 +127,7 @@ def print_( string, **kwargs ):
         string = colorize( string, **kwargs )
     print( string )
 
-def warn(s):
+def warn_(s):
     print_( s, color='magenta' )
 
 @contextmanager

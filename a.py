@@ -1,3 +1,6 @@
+import tools
+exit()
+
 import os
 import pickle
 os.environ['PYRO_SERIALIZERS_ACCEPTED'] = 'serpent,json,marshal,pickle,dill'
