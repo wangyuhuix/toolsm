@@ -671,7 +671,7 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
         obj.path_all.append( p )
 
     del_first_time = True
-    for group_dir in results_group.keys():
+    for ind_group,group_dir in enumerate(results_group.keys()):
         path_log = f'{path_root_new}/{group_dir}'
         if osp.exists(path_log):
             if overwrite:
@@ -688,15 +688,23 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
             paths = '\n'.join( _obj.path_all )
             logger_log.log_str( f"name:{name},key:{key_y},len:{len(_obj.values_all)},paths:\n{paths}\n\n" )
             values = np.mean(_obj.values_all, axis=0)
+
             for ind, global_step in enumerate(_obj.global_step):
                 keyvalues = dict(global_step=global_step)
                 keyvalues[f'{key_y}{name}'] = values[ind]
                 logger.log_keyvalues(**keyvalues)
 
+
+            for i in range(ind_group, ind_group+2):
+                keyvalues = dict(global_step=i)
+                keyvalues[f'count{name}'] = len(_obj.values_all)
+                logger.log_keyvalues(**keyvalues)
+
+
         if not usefig:
             log_result( results_group[group_dir] )
         else:
-            for group_fig in results_group[group_dir].keys():
+            for _,group_fig in enumerate(results_group[group_dir].keys()):
                 log_result(results_group[group_dir][group_fig], f'/{group_fig}' )
 
 
