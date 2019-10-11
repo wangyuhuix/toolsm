@@ -138,14 +138,20 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
         and for env=Humanoid, we use num_timesteps=int(2e7);
     '''
 
-
+    import json
     from tools_logger import Logger
     logger = Logger( formats='log', **log_kwargs )
+    args_NameAndValues_str = 'args_NameAndValues:\n' + json.dumps(args_NameAndValues, indent=4, separators=(',', ':'))
+    args_default_str = 'args_default:\n' + json.dumps(args_default, indent=4, separators=(',', ':'))
+    logger.log_str( args_NameAndValues_str )
+    print(args_NameAndValues_str)
+    logger.log_str(args_default_str )
+    print(args_default_str)
     args_list = args_NameAndValues2args_list( args_NameAndValues, args_default, args_list  )
     args_call_all = []
     args_call_base = ['python', '-m', script]
     print( 'call command:' , ' '.join(args_call_base) )
-    import json
+
     for ind, args in enumerate(args_list):
         args_call = args_call_base.copy()
         args_call_str = []

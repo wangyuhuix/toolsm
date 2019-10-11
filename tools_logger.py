@@ -583,7 +583,7 @@ class LogTime():
         self.ind += 1
 
 
-def _get_keys(keys):
+def _strlist2list(keys):
     if isinstance(keys, str):
         keys = keys.strip(',')
         keys = keys.strip()
@@ -592,7 +592,165 @@ def _get_keys(keys):
 
 
 
-def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='args.json', file_process='proces.csv', read_csv_args=dict( sep=',' ), name=None, overwrite=False):
+
+
+def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, file_args='args.json'):
+    '''
+    :param path_root:
+    :type path_root:
+    :param depth:
+    :type depth:
+    :param keys_args_main:
+    :type keys_args_main:
+    :param keys_args_sub:
+    :type keys_args_sub:
+    :param funs_load:
+    :type funs_load:
+    :param funs_name:
+    :type funs_name:
+    :param file_args:
+    :type file_args:
+    :return: results[keys_args_main][key and value of keys_args_sub]
+    :rtype:
+    '''
+    import tools
+    import pandas as pd
+
+    if path_root[-1] == '/':
+        path_root = path_root[:-1]
+
+
+
+    # names_funs =
+
+    paths = tools.get_dirs(path_root, depth=depth, only_last_depth=True, filter_=lambda x: any([  (s not in x) for s in ['notusing'] ]) )
+    # for p in paths:
+    #     print(p)
+
+    # group_keys = 'alg,alg_args'.split(',')
+
+    keys_main = _strlist2list(keys_args_main)
+    keys_sub = _strlist2list(keys_args_sub)
+
+
+    import os.path as osp
+    # if osp.exists(path_root_new):
+    #     tools.safe_delete(path_root_new, require_not_containsub=False)
+
+
+    from dotmap import DotMap
+
+    import numpy as np
+
+    import re
+    results_group = dict()
+    contain_subtask = len( keys_sub ) > 0
+    from tqdm import  tqdm
+    process = tqdm( total=len(paths) )
+    for p in paths:
+        process.update(1)
+        if any(  [(not os.path.exists( f'{p}/{f}' )) for f in [file_args]] ):
+            tools.warn_( f'{file_args} not exists' )
+            continue
+
+        args = tools.load_json(f'{p}/{file_args}')
+        name_method = tools.json2str(args, separators=(',', '='), keys_include=keys_main, remove_quotes_key=True, remove_brace=True)
+
+        term = DotMap(path_all=[], args_all=[])
+        for name in names_funs:
+            term[f'{name}_all'] = []
+
+        if not contain_subtask:
+            if name_method not in results_group.keys():
+                results_group[name_method] = term.copy()
+            obj = results_group[name_method]
+        else:#contains sub figure
+            name_task = tools.json2str(args, separators=(',', '='), keys_include=keys_sub, remove_quotes_key=True, remove_brace=True)
+            if name_method not in results_group.keys():
+                results_group[name_method] = dict()
+            if name_task not in results_group[name_method].keys():
+                results_group[name_method][name_task] = term.copy()
+            obj = results_group[name_method][name_task]
+
+        obj.path_all.append( p )
+        obj.args_all.append( args )
+
+
+        # global_steps, names, values = f(p, args)
+        items = f(p, args)
+        if isinstance(items, None):
+            continue
+        for item in items:
+            if isinstance(item, None):
+                continue
+            name, global_steps, values = item
+            obj[f'{name}_global_steps'] = global_steps #overwrite the old values
+            obj[f'{name}_all'].append( values )
+
+
+    return results_group
+
+
+def write_group_result(path_root, results_group, names_result, format='tensorflow', group_name=None, overwrite=False):
+    assert format == 'tensorflow', 'Not implement'
+
+    path_root_new = f'{path_root},group'
+    if group_name:
+        path_root_new += f',{group_name}'
+    tools.mkdir(path_root_new)
+    contain_subtask = not ('path_all' in list(results_group.values())[0].keys())
+    # TODO: debug
+    del_first_time = True
+    for ind_group,name_main in enumerate(results_group.keys()):
+        path_log = f'{path_root_new}/{name_main}'
+        if osp.exists(path_log):
+            if overwrite:
+                if tools.safe_delete(path_log, confirm=del_first_time):
+                    del_first_time= False
+                else:
+                    overwrite = False # not ask again next time
+                    continue
+            else:
+                continue
+
+        logger = Logger('tensorflow,csv', path=path_log, file_basename='group')
+        # logger_log = Logger('log', path=path_log, file_basename='group')
+
+        def log_result(_obj, name_sub=''):
+            # logger_log.log_str( f"name:{name},key:{name_result},len:{len(values)},paths:\n{paths}\n\n" )
+
+            for name_result in names_result:
+                values = _obj[f'{name_result}_all']
+                global_steps = _obj[f'{name_result}_global_steps']
+                values = np.mean(values, axis=0)
+
+                for ind, global_step in enumerate(global_steps):
+                    keyvalues = dict(global_step=global_step)
+                    keyvalues[f'{name_result}{name_sub}'] = values[ind]
+                    logger.log_keyvalues(**keyvalues)
+
+
+                for i in range(ind_group, ind_group+2):
+                    keyvalues = dict(global_step=i)
+                    keyvalues[f'count_{name_result}{name_result}'] = len(values)
+                    logger.log_keyvalues(**keyvalues)
+
+
+        if not contain_subtask:
+            log_result( results_group[name_main] )
+        else:
+            for _,name_sub in enumerate(results_group[name_main].keys()):
+                log_result(results_group[name_main][name_sub], f'/{name_sub}' )
+
+
+        logger.close()
+
+    tools.print_(f'Written grouped result to:\n{path_root_new}', color='green')
+
+
+
+
+def group_result_(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='args.json', file_process='process.csv', read_csv_args=dict( sep=',' ), name=None, overwrite=False):
     import tools
     import pandas as pd
 
@@ -678,6 +836,7 @@ def group_result(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='
                 if tools.safe_delete(path_log, confirm=del_first_time):
                     del_first_time= False
                 else:
+                    overwrite = False # not ask again next time
                     continue
             else:
                 continue
