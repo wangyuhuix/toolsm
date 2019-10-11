@@ -147,6 +147,8 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
     print(args_NameAndValues_str)
     logger.log_str(args_default_str )
     print(args_default_str)
+    logger.log_str( f'n={n}' )
+    print( f'n={n}' )
     args_list = args_NameAndValues2args_list( args_NameAndValues, args_default, args_list  )
     args_call_all = []
     args_call_base = ['python', '-m', script]

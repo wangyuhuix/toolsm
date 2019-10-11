@@ -657,8 +657,8 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
         name_method = tools.json2str(args, separators=(',', '='), keys_include=keys_main, remove_quotes_key=True, remove_brace=True)
 
         term = DotMap(path_all=[], args_all=[])
-        for name in names_funs:
-            term[f'{name}_all'] = []
+        # for name in names_funs:
+        #     term[f'{name}_all'] = []
 
         if not contain_subtask:
             if name_method not in results_group.keys():
@@ -677,14 +677,16 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
 
 
         # global_steps, names, values = f(p, args)
-        items = f(p, args)
-        if isinstance(items, None):
+        items = fun_load(p, args)
+        if items is None:
             continue
         for item in items:
-            if isinstance(item, None):
+            if item is None:
                 continue
             name, global_steps, values = item
-            obj[f'{name}_global_steps'] = global_steps #overwrite the old values
+            if f'{name}_all' not in obj.keys():
+                obj[f'{name}_global_steps'] = global_steps #overwrite the old values
+                obj[f'{name}_all'] = []
             obj[f'{name}_all'].append( values )
 
 
@@ -720,9 +722,12 @@ def write_group_result(path_root, results_group, names_result, format='tensorflo
             # logger_log.log_str( f"name:{name},key:{name_result},len:{len(values)},paths:\n{paths}\n\n" )
 
             for name_result in names_result:
-                values = _obj[f'{name_result}_all']
+                if f'{name_result}_all' not in _obj.keys():
+                    continue
+
+                values_all = _obj[f'{name_result}_all']
                 global_steps = _obj[f'{name_result}_global_steps']
-                values = np.mean(values, axis=0)
+                values = np.mean(values_all, axis=0)
 
                 for ind, global_step in enumerate(global_steps):
                     keyvalues = dict(global_step=global_step)
@@ -732,15 +737,16 @@ def write_group_result(path_root, results_group, names_result, format='tensorflo
 
                 for i in range(ind_group, ind_group+2):
                     keyvalues = dict(global_step=i)
-                    keyvalues[f'count_{name_result}{name_result}'] = len(values)
+                    keyvalues[f'count_{name_result}{name_sub}'] = len(values_all)
                     logger.log_keyvalues(**keyvalues)
 
 
         if not contain_subtask:
             log_result( results_group[name_main] )
         else:
-            for _,name_sub in enumerate(results_group[name_main].keys()):
-                log_result(results_group[name_main][name_sub], f'/{name_sub}' )
+            for _,name_sub in enumerate( results_group[name_main].keys() ):
+                # print(f'{name_main},{name_sub}')
+                log_result( results_group[name_main][name_sub], f'/{name_sub}' )
 
 
         logger.close()
