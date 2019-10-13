@@ -367,7 +367,7 @@ def load_vars(filename, catchError=False):
         if catchError:
             warn( f'Load Error:\n{filename}' )
             return None
-        # raise e
+        raise e
 #
 def save_vars(filename, *vs, disp=False, append=False):
     if disp:

@@ -649,8 +649,12 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
     process = tqdm( total=len(paths) )
     for p in paths:
         process.update(1)
-        if any(  [(not os.path.exists( f'{p}/{f}' )) for f in [file_args]] ):
-            tools.warn_( f'{file_args} not exists' )
+        # if any(  [(not os.path.exists( f'{p}/{f}' )) for f in [file_args]] ):
+        #     tools.warn_( f'{file_args} not exists' )
+        #     continue
+
+        if not os.path.exists( get_finish_file(p) ):
+            tools.warn_(f'{p}\n not finish')
             continue
 
         args = tools.load_json(f'{p}/{file_args}')
@@ -684,9 +688,15 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
             if item is None:
                 continue
             name, global_steps, values = item
+            tools.save_s(f'{p}/len={len(global_steps)}', '')
             if f'{name}_all' not in obj.keys():
                 obj[f'{name}_global_steps'] = global_steps #overwrite the old values
+                obj[f'{name}_global_steps_p'] = p
                 obj[f'{name}_all'] = []
+            else:
+                if len( global_steps ) != len( obj[f'{name}_global_steps'] ):
+                    tools.warn_( f"length not equal:\n{p}\noldp:{obj[f'{name}_global_steps_p']}" )
+                    continue
             obj[f'{name}_all'].append( values )
 
 
@@ -701,7 +711,7 @@ def write_group_result(path_root, results_group, names_result, format='tensorflo
         path_root_new += f',{group_name}'
     tools.mkdir(path_root_new)
     contain_subtask = not ('path_all' in list(results_group.values())[0].keys())
-    # TODO: debug
+
     del_first_time = True
     for ind_group,name_main in enumerate(results_group.keys()):
         path_log = f'{path_root_new}/{name_main}'
@@ -727,6 +737,7 @@ def write_group_result(path_root, results_group, names_result, format='tensorflo
 
                 values_all = _obj[f'{name_result}_all']
                 global_steps = _obj[f'{name_result}_global_steps']
+                # print(values_all)
                 values = np.mean(values_all, axis=0)
 
                 for ind, global_step in enumerate(global_steps):
