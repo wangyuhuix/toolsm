@@ -648,13 +648,12 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
     from tqdm import  tqdm
     process = tqdm( total=len(paths) )
     for p in paths:
-        process.update(1)
         # if any(  [(not os.path.exists( f'{p}/{f}' )) for f in [file_args]] ):
         #     tools.warn_( f'{file_args} not exists' )
         #     continue
 
         if not os.path.exists( get_finish_file(p) ):
-            tools.warn_(f'{p}\n not finish')
+            tools.warn_(f'not finish:\n{p}')
             continue
 
         args = tools.load_json(f'{p}/{file_args}')
@@ -700,6 +699,7 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
             obj[f'{name}_all'].append( values )
 
 
+        process.update(1)
     return results_group
 
 
@@ -726,10 +726,10 @@ def write_group_result(path_root, results_group, names_result, format='tensorflo
                 continue
 
         logger = Logger('tensorflow,csv', path=path_log, file_basename='group')
-        # logger_log = Logger('log', path=path_log, file_basename='group')
+        logger_log = Logger('log', path=path_log, file_basename='group')
 
         def log_result(_obj, name_sub=''):
-            # logger_log.log_str( f"name:{name},key:{name_result},len:{len(values)},paths:\n{paths}\n\n" )
+            # logger_log.log_str( f"name_sub:{name_sub},len:{len(values)},paths:\n{paths}\n\n" )
 
             for name_result in names_result:
                 if f'{name_result}_all' not in _obj.keys():
