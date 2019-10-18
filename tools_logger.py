@@ -75,10 +75,12 @@ def get_logger_dir(name_project=None):
 def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_project='tmpProject'):
     '''
     Please add the following keys to the argument:
-        parser.add_argument('--log_dir_mode', default='', type=str)#finish_then_exit_else_overwrite
+        parser.add_argument('--log_dir_mode', default='finish_then_exit_else_overwrite', type=str)#finish_then_exit_else_overwrite
         parser.add_argument('--keys_group', default=['clipped_type'], type=ast.literal_eval)
         parser.add_argument('--name_group', default='', type=str)
         parser.add_argument('--name_run', default="", type=str)
+
+    Please Rememer to add when the program exit!!!!
 
     The final log_path is:
         root_dir/name_project/dir_type/[key_group=value,]name_group/[key_normalargs=value]name_run
@@ -235,7 +237,9 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     for d_type in dirs_type:
         tools.makedirs( dirs_full[d_type] )
 
-    tools.save_json( os.path.join(args.log_dir, 'args.json'), args.toDict() )
+    args_json = args.toDict()
+    args_json['__timenow'] = tools.time_now_str()
+    tools.save_json( os.path.join(args.log_dir, 'args.json'), args_json )
     return args
 
 def get_finish_file(path):
@@ -332,7 +336,11 @@ class CsvOuputFormat(OutputFormat):
 
     def _write_items(self, items):
         for ind, item in enumerate(items):
-            self.file.write(str(item))
+            if item is None:
+                item_str = ''
+            else:
+                item_str = str(item)
+            self.file.write(item_str)
             if ind < len(items)-1:
                 self.file.write('\t')
         self.file.write('\n')
@@ -596,6 +604,10 @@ def _strlist2list(keys):
 
 def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, file_args='args.json'):
     '''
+    load from directories.
+    The directories load:
+        - contains <finish> file
+        - contains args file(optional, e.g., args.json): it is used for generate name of figures.
     :param path_root:
     :type path_root:
     :param depth:
@@ -623,14 +635,16 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
 
     # names_funs =
 
-    paths = tools.get_dirs(path_root, depth=depth, only_last_depth=True, filter_=lambda x: any([  (s not in x) for s in ['notusing'] ]) )
+    paths = tools.get_dirs(path_root, depth=depth, only_last_depth=True, filter_=lambda x: any([  (s not in x) for s in ['notusing',',tmp'] ]) )
     # for p in paths:
     #     print(p)
 
     # group_keys = 'alg,alg_args'.split(',')
+    if isinstance(keys_args_main, str):
+        keys_args_main = _strlist2list(keys_args_main)
 
-    keys_main = _strlist2list(keys_args_main)
-    keys_sub = _strlist2list(keys_args_sub)
+    if isinstance(keys_args_sub, str):
+        keys_args_sub = _strlist2list(keys_args_sub)
 
 
     import os.path as osp
@@ -644,21 +658,31 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
 
     import re
     results_group = dict()
-    contain_subtask = len( keys_sub ) > 0
-    from tqdm import  tqdm
+    if isinstance(keys_args_sub, list):
+        contain_subtask = len( keys_args_sub ) > 0
+    else:
+        contain_subtask = keys_args_sub is not None
+    from tqdm import tqdm
     process = tqdm( total=len(paths) )
     for p in paths:
         # if any(  [(not os.path.exists( f'{p}/{f}' )) for f in [file_args]] ):
         #     tools.warn_( f'{file_args} not exists' )
         #     continue
 
+        path_split = p.split('/')
         if not os.path.exists( get_finish_file(p) ):
             tools.warn_(f'not finish:\n{p}')
             continue
 
         args = tools.load_json(f'{p}/{file_args}')
-        name_method = tools.json2str(args, separators=(',', '='), keys_include=keys_main, remove_quotes_key=True, remove_brace=True)
-
+        if 'env' in args.keys():
+            args['env'] = args['env'].split('-v')[0]
+        if isinstance(keys_args_main, list):
+            name_method = tools.json2str(args, separators=(',', '='), keys_include=keys_args_main, remove_quotes_key=True, remove_brace=True)
+        elif isinstance(keys_args_main, int):
+            name_method = path_split[-keys_args_main]
+            name_method = name_method.replace('Link to ','')
+            name_method = name_method.replace(',tidy.eval', '')
         term = DotMap(path_all=[], args_all=[])
         # for name in names_funs:
         #     term[f'{name}_all'] = []
@@ -668,7 +692,13 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
                 results_group[name_method] = term.copy()
             obj = results_group[name_method]
         else:#contains sub figure
-            name_task = tools.json2str(args, separators=(',', '='), keys_include=keys_sub, remove_quotes_key=True, remove_brace=True)
+            if isinstance(keys_args_sub, list):
+                name_task = tools.json2str(args, separators=(',', '='), keys_include=keys_args_sub, remove_quotes_key=True, remove_brace=True)
+            elif isinstance(keys_args_sub, int):
+                name_task = path_split[-keys_args_sub]
+                name_task = name_task.replace('Link to ','')
+                name_task = name_task.replace(',tidy.eval', '')
+
             if name_method not in results_group.keys():
                 results_group[name_method] = dict()
             if name_task not in results_group[name_method].keys():
@@ -703,12 +733,15 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
     return results_group
 
 
-def write_group_result(path_root, results_group, names_result, format='tensorflow', group_name=None, overwrite=False):
+def write_group_result(path_root, results_group, names_y, format='tensorflow', group_name=None, overwrite=False):
     assert format == 'tensorflow', 'Not implement'
 
     path_root_new = f'{path_root},group'
     if group_name:
         path_root_new += f',{group_name}'
+
+    if isinstance(names_y, str):
+        names_y = _strlist2list(names_y)
     tools.mkdir(path_root_new)
     contain_subtask = not ('path_all' in list(results_group.values())[0].keys())
 
@@ -729,26 +762,26 @@ def write_group_result(path_root, results_group, names_result, format='tensorflo
         logger_log = Logger('log', path=path_log, file_basename='group')
 
         def log_result(_obj, name_sub=''):
-            # logger_log.log_str( f"name_sub:{name_sub},len:{len(values)},paths:\n{paths}\n\n" )
 
-            for name_result in names_result:
-                if f'{name_result}_all' not in _obj.keys():
+            logger_log.log_str(f"name_main:{name_main},name_sub:{name_sub},len:{len(_obj.path_all)},paths:\n{_obj.path_all}\n\n")
+            for name_y in names_y:
+                if f'{name_y}_all' not in _obj.keys():
                     continue
 
-                values_all = _obj[f'{name_result}_all']
-                global_steps = _obj[f'{name_result}_global_steps']
-                # print(values_all)
+                values_all = _obj[f'{name_y}_all']
+                global_steps = _obj[f'{name_y}_global_steps']
                 values = np.mean(values_all, axis=0)
+                # print(values_all)
 
                 for ind, global_step in enumerate(global_steps):
                     keyvalues = dict(global_step=global_step)
-                    keyvalues[f'{name_result}{name_sub}'] = values[ind]
+                    keyvalues[f'{name_y}{name_sub}'] = values[ind]
                     logger.log_keyvalues(**keyvalues)
 
 
                 for i in range(ind_group, ind_group+2):
                     keyvalues = dict(global_step=i)
-                    keyvalues[f'count_{name_result}{name_sub}'] = len(values_all)
+                    keyvalues[f'count_{name_y}{name_sub}'] = len(values_all)
                     logger.log_keyvalues(**keyvalues)
 
 

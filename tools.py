@@ -318,7 +318,7 @@ def json2str_file(obj, remove_brace=True, keys_exclude=[] ):
 
 
 
-def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_value=True, remove_brace=True, keys_include=None, keys_exclude=None, **jsondumpkwargs):
+def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_value=True, remove_brace=True, remove_key=False, keys_include=None, keys_exclude=None, **jsondumpkwargs):
 
     if isinstance(keys_include, list):
         obj_ori = obj
@@ -331,15 +331,22 @@ def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_v
     if isinstance(keys_exclude, list):
         for key in keys_exclude:
             del obj[key]
+    if remove_key:
+        args_str = ''
+        for k in obj:
+            args_str += f'{obj[k]},'
 
-    args_str = json.dumps(obj, separators=separators, **jsondumpkwargs)
-    # print(args_str)
-    if remove_brace:
-        args_str = args_str.strip()
-        if args_str[0] == '{':
-            args_str = args_str[1:]
-        if args_str[-1] == '}':
+        if len(args_str)>0:
             args_str = args_str[:-1]
+    else:
+        args_str = json.dumps(obj, separators=separators, **jsondumpkwargs)
+        # print(args_str)
+        if remove_brace:
+            args_str = args_str.strip()
+            if args_str[0] == '{':
+                args_str = args_str[1:]
+            if args_str[-1] == '}':
+                args_str = args_str[:-1]
     if remove_quotes_key:
         import re
         args_str = re.sub(r'(?<!'+separators[1]+')"(\S*?)"', r'\1', args_str)
@@ -369,9 +376,9 @@ def load_vars(filename, catchError=False):
             return None
         raise e
 #
-def save_vars(filename, *vs, disp=False, append=False):
-    if disp:
-        print( f'Write to \n{filename}' )
+def save_vars(filename, *vs, verbose=0, disp=False, append=False):
+    if verbose:
+        print( f'Save vars to \n{filename}' )
     mode = 'ab' if append else 'wb'
     with open(filename,mode) as f:
         if len(vs) == 1:
