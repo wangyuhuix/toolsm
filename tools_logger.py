@@ -484,7 +484,7 @@ class Logger(object):
 
     def __init__(self, formats=[type.stdout], path='', file_basename=None, file_append=False):
         '''
-        :param formats: formats, e.g.,'log,csv,json'
+        :param formats: formats, e.g.,'stdout,log,csv,json'
         :type formats:str
         :param file_basename:
         :type file_basename:
