@@ -635,7 +635,7 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
 
     # names_funs =
 
-    paths = tools.get_dirs(path_root, depth=depth, only_last_depth=True, filter_=lambda x: any([  (s not in x) for s in ['notusing',',tmp'] ]) )
+    paths = tools.get_dirs(path_root, depth=depth, only_last_depth=True, filter_=lambda x: all([  (s not in x) for s in ['notusing',',tmp'] ]) )
     # for p in paths:
     #     print(p)
 
@@ -664,11 +664,12 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
         contain_subtask = keys_args_sub is not None
     from tqdm import tqdm
     process = tqdm( total=len(paths) )
+    keys_args_main_ori = keys_args_main
     for p in paths:
         # if any(  [(not os.path.exists( f'{p}/{f}' )) for f in [file_args]] ):
         #     tools.warn_( f'{file_args} not exists' )
         #     continue
-
+        keys_args_main = keys_args_main_ori.copy()
         path_split = p.split('/')
         if not os.path.exists( get_finish_file(p) ):
             tools.warn_(f'not finish:\n{p}')
@@ -678,6 +679,9 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
         if 'env' in args.keys():
             args['env'] = args['env'].split('-v')[0]
         if isinstance(keys_args_main, list):
+            for i_,k_ in list(enumerate(keys_args_main)):
+                if k_ not in args.keys():
+                    keys_args_main.remove(k_)
             name_method = tools.json2str(args, separators=(',', '='), keys_include=keys_args_main, remove_quotes_key=True, remove_brace=True)
         elif isinstance(keys_args_main, int):
             name_method = path_split[-keys_args_main]
