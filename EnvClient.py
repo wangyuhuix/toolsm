@@ -1,11 +1,12 @@
-from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv, SubprocVecEnvMulti
-import Pyro4.naming
-from multiprocessing import cpu_count
 import sys
-from warnings import warn
-from tools import print_refresh
-from run_common import make_env,make_envs_local
 import uuid
+from warnings import warn
+
+import Pyro4.naming
+from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv, SubprocVecEnvMulti
+from discard.run_common import make_env, make_envs_local
+from tools import print_refresh
+
 sys.excepthook = Pyro4.util.excepthook
 class EnvClient(object):
     def __init__(self, env_id, host, name_remote, seed=0, num_processes=None, name_host=None, random_name=False, **kwargs):
@@ -136,7 +137,8 @@ def _get_envs_all_list(env_id, seed, path_logger, num_processes=4, num_envs=1):
         for id in range(num_ids):
             env.append(EnvClient(env_id, seed, host, name_remote=id, num_processes=num_processes, name_host=name))
     return env
-from tools import save_vars
+
+
 from PIL import Image
 import tools
 if __name__ == '__main__':

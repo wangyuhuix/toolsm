@@ -480,7 +480,7 @@ def check_safe_path(path, confirm=True, depth=4, require_not_containsub=False, n
     depth_min = 4
     assert depth >= depth_min, f'depth is at least {depth_min}, please modfiy your code for calling check_safe_path()'
     assert re.match(
-        ''.join([ "^(", os.environ['HOME'], "|", "/media)(/[^/]+){",str(depth-1),",}" ])
+        ''.join([ "^/(home|media)(/[^/]+){",str(depth-1),",}" ])
         ,path), f'At least operate {depth}-th depth sub-directory!\n{path}'
     contents = ''
     if not os.path.isfile( path ):

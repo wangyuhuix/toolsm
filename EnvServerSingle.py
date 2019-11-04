@@ -1,10 +1,10 @@
 import os
-import pickle
+
 os.environ['PYRO_SERIALIZERS_ACCEPTED'] = 'serpent,json,marshal,pickle,dill'
 os.environ['PYRO_SERIALIZER'] = 'pickle'
 
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
-from run_common import make_env
+from discard.run_common import make_env
 import Pyro4.naming
 from multiprocessing import cpu_count
 @Pyro4.expose

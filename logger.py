@@ -669,7 +669,7 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
         # if any(  [(not os.path.exists( f'{p}/{f}' )) for f in [file_args]] ):
         #     tools.warn_( f'{file_args} not exists' )
         #     continue
-        keys_args_main = keys_args_main_ori.copy()
+
         path_split = p.split('/')
         if not os.path.exists( get_finish_file(p) ):
             tools.warn_(f'not finish:\n{p}')
@@ -679,12 +679,14 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
         if 'env' in args.keys():
             args['env'] = args['env'].split('-v')[0]
         if isinstance(keys_args_main, list):
+            keys_args_main = keys_args_main_ori.copy()
+            # TODO: may have bug
             for i_,k_ in list(enumerate(keys_args_main)):
                 if k_ not in args.keys():
                     keys_args_main.remove(k_)
             name_method = tools.json2str(args, separators=(',', '='), keys_include=keys_args_main, remove_quotes_key=True, remove_brace=True)
         elif isinstance(keys_args_main, int):
-            name_method = path_split[-keys_args_main]
+            name_method = path_split[keys_args_main]
             name_method = name_method.replace('Link to ','')
             name_method = name_method.replace(',tidy.eval', '')
         term = DotMap(path_all=[], args_all=[])
@@ -699,7 +701,7 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
             if isinstance(keys_args_sub, list):
                 name_task = tools.json2str(args, separators=(',', '='), keys_include=keys_args_sub, remove_quotes_key=True, remove_brace=True)
             elif isinstance(keys_args_sub, int):
-                name_task = path_split[-keys_args_sub]
+                name_task = path_split[keys_args_sub]
                 name_task = name_task.replace('Link to ','')
                 name_task = name_task.replace(',tidy.eval', '')
 

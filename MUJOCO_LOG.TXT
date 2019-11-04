@@ -1,3 +1,0 @@
-Tue May 22 01:00:20 2018
-ERROR: Offscreen framebuffer is not complete
-
