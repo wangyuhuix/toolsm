@@ -586,6 +586,74 @@ def _strlist2list(keys):
 
 
 
+def group_result(task_setting_all, fun_load, operation, path_root, methods_dir2setting={}):
+    task_setting_default = dict(
+        key_global_step='total_timesteps',
+        keys_args_env='env'
+    )
+    for task_setting in task_setting_all:
+        if 'keys_y' not in task_setting.keys():
+            task_setting['keys_y'] = task_setting.dir
+        for k in task_setting_default:
+            if k not in task_setting:
+                task_setting[k] = task_setting_default[k]
+    for task_setting in task_setting_all:
+        dir_ = task_setting.dir
+        path = f'{path_root}/{dir_}'
+        path_group = f'{path},group'
+        tools.mkdir(path_group)
+        keys_y = task_setting['keys_y']
+        key_global_step = task_setting['key_global_step']
+        keys_args_env = task_setting['keys_args_env']
+        if operation == 'fig_generateresult':
+            results_group = get_group_result(
+                path_root = path,
+                depth=2,
+                keys_args_main=keys_args_env,
+                keys_args_sub=-2,
+                fun_load=fun_load( keys_y, key_global_step=key_global_step )
+            )
+            # modify env name
+            envs = list( results_group.keys())
+            for env in envs:
+                env_new = env.replace('env=','')
+                results_group[env_new] = results_group.pop(env)
+            # modify method name
+            if len(methods_dir2setting.keys() ) > 0:
+                for env in results_group:
+                    dirs_all = list(results_group[env].keys())
+                    for dir_ in dirs_all:
+                        results_group[env][ methods_dir2setting[dir_]['name']] = results_group[env].pop(dir_)
+            tools.save_vars( f'{path_group}/results_group.pkl', results_group, verbose=1 )
+        elif operation == 'check':
+            results_group = tools.load_vars(f'{path_group}/results_group.pkl')
+            pass
+        elif operation == 'generate_methods_dir2setting':#for
+            results_group = tools.load_vars(f'{path_group}/results_group.pkl')
+            for env in results_group:
+                for dir_ in results_group[env]:
+                    methods_dir2setting[dir_] = "dict()"
+        elif operation == 'tf':
+            results_group = get_group_result(
+                path_root = path,
+                depth=2,
+                keys_args_main=-2,
+                keys_args_sub=keys_args_env,
+                fun_load=fun_load( keys_y, key_global_step=key_global_step )
+            )
+            write_group_result(
+                path_root=path,
+                results_group=results_group,
+                names_y=keys_y,
+                overwrite=1
+            )
+        else:
+            raise NotImplementedError
+    if operation == 'generate_methods_dir2setting':
+        methods_jsonstr = tools.json2str( methods_dir2setting, remove_quotes_key=False, remove_brace=False, remove_quotes_value=True , indent='\t' )
+        methods_jsonstr = methods_jsonstr.replace('"',"'")
+        print( methods_jsonstr )
+
 
 
 def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, file_args='args.json'):
@@ -724,8 +792,141 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
         process.update(1)
     return results_group
 
+def plot_group_result(task_setting_all, alg_setting_all, path_root_data, path_root_save, fontsize , IS_DEBUG=False):
+    import toolsm.plt
+    from scipy.signal import savgol_filter
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import pickle
 
-def write_group_result(path_root, results_group, names_y, format='tensorflow', group_name=None, overwrite=False):
+    for alg in alg_setting_all:
+        if not alg_setting_all[alg].has_key('window_length'):
+            alg_setting_all[alg].window_length = 9
+
+    xticks_setting_default = DotMap(div=1e6, unit=r'$\times 10^6$', n=5, round=1)
+
+    for task_setting in task_setting_all:
+        if not task_setting.has_key('dir'):
+            task_setting.dir = task_setting.name
+        if not task_setting.has_key('linewidth'):
+            task_setting.linewidth = 1.5
+        for env_name in task_setting.env:
+            env_setting = task_setting.env[env_name]
+            if not env_setting.has_key('xticks_setting'):
+                env_setting.xticks_setting = xticks_setting_default
+            else:
+                xticks_setting = xticks_setting_default.copy()
+                xticks_setting.update(env_setting.xticks_setting)
+                env_setting.xticks_setting = xticks_setting
+
+            if not env_setting.has_key('ci'):
+                env_setting.ci = 60
+
+            if not env_setting.has_key('legend'):
+                env_setting.legend = False
+    for task_setting in task_setting_all:
+        task_setting.path = f"{path_root_data}/{task_setting.dir},group/results_group.pkl"
+        f = open(task_setting.path, 'rb')
+        results_group = pickle.load(f)
+        task_setting.ylabel = task_setting['ylabel']
+        task_setting.xaxis = f"{task_setting['name']}_global_steps"
+        task_setting.yaxis = f"{task_setting['name']}_all"
+
+        for env_name, env_setting in task_setting['env'].items():
+            legends = []
+            # fig, ax = plt.subplots()
+            fig = plt.figure()
+            ax = plt.axes()
+
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+
+            # 保证results_group里的方法再algs里都有
+            for alg in results_group[env_name]:
+                # assert alg in algs,
+                if alg not in alg_setting_all:
+                    tools.warn_(f"'{alg}' not in algs")
+
+            for alg in alg_setting_all:
+                if alg not in results_group[env_name]:
+                    continue
+                alg_setting = alg_setting_all[alg].copy()
+                if 'algs' in env_setting.keys() and alg in env_setting['algs'].keys():
+                    alg_setting_specify = env_setting['algs'][alg]
+                    print(alg_setting_specify)
+                    alg_setting.update(alg_setting_specify)
+                x_axis = results_group[env_name][alg][task_setting.xaxis]
+                y_axis = results_group[env_name][alg][task_setting.yaxis]
+                y_axis = savgol_filter(y_axis, window_length=alg_setting.window_length, polyorder=1)
+                # print(alg_setting.pltargs.toDict())
+                # print(np.max(x_axis))
+                sns.tsplot(y_axis,
+                           x_axis,
+                           # color=alg_setting.color,
+                           # linestyle=alg_setting.linestyle,
+                           linewidth=task_setting.linewidth,
+                           legend=True,
+                           ci=env_setting.ci,
+                           **alg_setting.pltargs.toDict()
+                           )
+                legends.append(alg)  # legend of this plot
+
+            # set grid
+            ax.grid(linestyle='--', linewidth=0.3, color='black', alpha=0.15)
+
+            if env_setting.has_key('ylim_start'):
+                # ax.set_ylim(bottom=0, top=120)
+                plt.ylim(bottom=env_setting.ylim_start)
+            if env_setting.has_key('ylim_end'):
+                # print(env_setting.ylim_end)
+                ax.set_ylim(top=env_setting.ylim_end)
+
+            # set labels and titles
+            plt.ylabel(task_setting.ylabel, fontsize=fontsize, labelpad=4)
+            xlabel = "Timesteps"
+            xticks_setting = env_setting.xticks_setting
+            if xticks_setting.has_key('unit'):
+                xlabel = f'{xlabel}({xticks_setting.unit})'
+            plt.xlabel(xlabel, fontsize=fontsize, labelpad=4)
+            env_name = env_name.replace('', '').replace('-v1', '').replace('-v2', '').replace('-v3', '')
+            plt.title(env_name, fontsize=fontsize + 3)
+
+            path_save = f"{path_root_save}/{task_setting.dir}"
+            tools.mkdirs(path_save)
+            ylabel_ = task_setting.ylabel.replace(' ', '_')
+
+            locs, labels = plt.xticks()
+            loc_min, loc_max = locs[0], locs[-1]
+            # print(loc_min, loc_max)
+            locs = np.linspace(loc_min, loc_max, xticks_setting.n + 1)
+            labels = [''] * locs.size
+            for ind_, loc in enumerate(locs):
+                labels[ind_] = round(loc / xticks_setting.div, xticks_setting.round)
+                if xticks_setting.round == 0:
+                    labels[ind_] = int(labels[ind_])
+            plt.xticks(locs)
+            ax.set_xticklabels(labels)
+
+
+
+            # set legend
+            if env_setting.legend:
+                # print(env_setting.legend)
+                h = plt.gca().get_lines()
+                leg = plt.legend(handles=h, labels=legends, handlelength=4.0,
+                                 ncol=1, **env_setting.legend.toDict())
+
+
+            print(f'{path_save}/{env_name}')
+            # exit()
+            plt.savefig(f'{path_save}/{env_name}.pdf', bbox_inches="tight",
+                        pad_inches=0.03)  # pad_inches: 留白大小
+            if IS_DEBUG:
+                toolsm.plt.set_position()
+                plt.show()
+
+
+def write_group_result(path_root, results_group, names_y, group_name=None, overwrite=False):
     assert format == 'tensorflow', 'Not implement'
 
     path_root_new = f'{path_root},group'
@@ -790,130 +991,6 @@ def write_group_result(path_root, results_group, names_y, format='tensorflow', g
     tools.print_(f'Written grouped result to:\n{path_root_new}', color='green')
 
 
-
-
-def group_result_(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='args.json', file_process='process.csv', read_csv_args=dict( sep=',' ), name=None, overwrite=False):
-    from . import tools
-    import pandas as pd
-
-    if path_root[-1] == '/':
-        path_root = path_root[:-1]
-
-    paths = tools.get_dirs(path_root, depth=depth, only_last_depth=True, filter_=lambda x: any([  (s not in x) for s in ['notusing'] ]) )
-    # for p in paths:
-    #     print(p)
-
-    # group_keys = 'alg,alg_args'.split(',')
-
-    keys_dir = _get_keys(keys_dir)
-    keys_fig = _get_keys(keys_fig)
-
-    path_root_new = f'{path_root},group'
-
-
-
-    import os.path as osp
-    # if osp.exists(path_root_new):
-    #     tools.safe_delete(path_root_new, require_not_containsub=False)
-
-    tools.mkdir(path_root_new)
-    from dotmap import DotMap
-
-
-
-    import numpy as np
-
-    # key_x = 'global_step'
-    # key_y = 'reward_accumulate'
-
-    import re
-    results_group = DotMap()
-    usefig = len( keys_fig ) > 0
-    for p in paths:
-        print(p)
-        if any(  [(not os.path.exists( f'{p}/{f}' )) for f in [file_args, file_process]] ):
-            tools.warn_( f'{file_args} or {file_process} not exists' )
-            continue
-
-        args = tools.load_json(f'{p}/{file_args}')
-
-        process = pd.read_csv(f'{p}/{file_process}', **read_csv_args)
-        # print(process.columns.values)
-        # if not 'global_step' in process.columns.values:
-        #     tools.safe_delete( p, confirm=False )
-        #     continue
-
-        # print('*******')
-        group_dir = tools.json2str(args, separators=(',', '='), keys_include=keys_dir, remove_quotes_key=True,
-                               remove_brace=True)
-
-
-
-        if not usefig:
-            if group_dir not in results_group.keys():
-                results_group[group_dir] = DotMap(global_step=process.loc[:, key_x], values_all=[], path_all=[])
-            else:
-                assert np.all(results_group[group_dir].global_step == process.loc[:, key_x])
-            obj = results_group[group_dir]
-        else:#contains sub figure
-            group_fig = tools.json2str(args, separators=(',', '='), keys_include=keys_fig, remove_quotes_key=True,
-                                       remove_brace=True)
-            if group_dir not in results_group.keys():
-                results_group[group_dir] = dict()
-            if group_fig not in results_group[group_dir].keys():
-                results_group[group_dir][group_fig] = DotMap(global_step=process.loc[:, key_x], values_all=[], path_all=[])
-            else:
-                # assert np.all(results_group[group_dir][group_fig].global_step == process.loc[:, key_x])
-                pass
-            obj = results_group[group_dir][group_fig]
-
-        obj.values_all.append(process.loc[:, key_y])
-        obj.path_all.append( p )
-
-    del_first_time = True
-    for ind_group,group_dir in enumerate(results_group.keys()):
-        path_log = f'{path_root_new}/{group_dir}'
-        if osp.exists(path_log):
-            if overwrite:
-                if tools.safe_delete(path_log, confirm=del_first_time):
-                    del_first_time= False
-                else:
-                    overwrite = False # not ask again next time
-                    continue
-            else:
-                continue
-
-        logger = Logger('tensorflow,csv', path=path_log, file_basename='group')
-        logger_log = Logger('log', path=path_log, file_basename='group')
-        def log_result( _obj, name='' ):
-            paths = '\n'.join( _obj.path_all )
-            logger_log.log_str( f"name:{name},key:{key_y},len:{len(_obj.values_all)},paths:\n{paths}\n\n" )
-            values = np.mean(_obj.values_all, axis=0)
-
-            for ind, global_step in enumerate(_obj.global_step):
-                keyvalues = dict(global_step=global_step)
-                keyvalues[f'{key_y}{name}'] = values[ind]
-                logger.log_keyvalues(**keyvalues)
-
-
-            for i in range(ind_group, ind_group+2):
-                keyvalues = dict(global_step=i)
-                keyvalues[f'count{name}'] = len(_obj.values_all)
-                logger.log_keyvalues(**keyvalues)
-
-
-        if not usefig:
-            log_result( results_group[group_dir] )
-        else:
-            for _,group_fig in enumerate(results_group[group_dir].keys()):
-                log_result(results_group[group_dir][group_fig], f'/{group_fig}' )
-
-
-        logger.close()
-
-    tools.print_(f'Written grouped result to:\n{path_root_new}', color='green')
-
-
 def tes_groupresult():
     pass
     # root = '/media/d/e/et/baselines'
@@ -939,6 +1016,130 @@ def tes_groupresult():
     # args = parser.parse_args()
     # prepare_dirs( args, args_dict )
     # exit()
+
+
+
+# def group_result_(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='args.json', file_process='process.csv', read_csv_args=dict( sep=',' ), name=None, overwrite=False):
+#     from . import tools
+#     import pandas as pd
+#
+#     if path_root[-1] == '/':
+#         path_root = path_root[:-1]
+#
+#     paths = tools.get_dirs(path_root, depth=depth, only_last_depth=True, filter_=lambda x: any([  (s not in x) for s in ['notusing'] ]) )
+#     # for p in paths:
+#     #     print(p)
+#
+#     # group_keys = 'alg,alg_args'.split(',')
+#
+#     keys_dir = _get_keys(keys_dir)
+#     keys_fig = _get_keys(keys_fig)
+#
+#     path_root_new = f'{path_root},group'
+#
+#
+#
+#     import os.path as osp
+#     # if osp.exists(path_root_new):
+#     #     tools.safe_delete(path_root_new, require_not_containsub=False)
+#
+#     tools.mkdir(path_root_new)
+#     from dotmap import DotMap
+#
+#
+#
+#     import numpy as np
+#
+#     # key_x = 'global_step'
+#     # key_y = 'reward_accumulate'
+#
+#     import re
+#     results_group = DotMap()
+#     usefig = len( keys_fig ) > 0
+#     for p in paths:
+#         print(p)
+#         if any(  [(not os.path.exists( f'{p}/{f}' )) for f in [file_args, file_process]] ):
+#             tools.warn_( f'{file_args} or {file_process} not exists' )
+#             continue
+#
+#         args = tools.load_json(f'{p}/{file_args}')
+#
+#         process = pd.read_csv(f'{p}/{file_process}', **read_csv_args)
+#         # print(process.columns.values)
+#         # if not 'global_step' in process.columns.values:
+#         #     tools.safe_delete( p, confirm=False )
+#         #     continue
+#
+#         # print('*******')
+#         group_dir = tools.json2str(args, separators=(',', '='), keys_include=keys_dir, remove_quotes_key=True,
+#                                remove_brace=True)
+#
+#
+#
+#         if not usefig:
+#             if group_dir not in results_group.keys():
+#                 results_group[group_dir] = DotMap(global_step=process.loc[:, key_x], values_all=[], path_all=[])
+#             else:
+#                 assert np.all(results_group[group_dir].global_step == process.loc[:, key_x])
+#             obj = results_group[group_dir]
+#         else:#contains sub figure
+#             group_fig = tools.json2str(args, separators=(',', '='), keys_include=keys_fig, remove_quotes_key=True,
+#                                        remove_brace=True)
+#             if group_dir not in results_group.keys():
+#                 results_group[group_dir] = dict()
+#             if group_fig not in results_group[group_dir].keys():
+#                 results_group[group_dir][group_fig] = DotMap(global_step=process.loc[:, key_x], values_all=[], path_all=[])
+#             else:
+#                 # assert np.all(results_group[group_dir][group_fig].global_step == process.loc[:, key_x])
+#                 pass
+#             obj = results_group[group_dir][group_fig]
+#
+#         obj.values_all.append(process.loc[:, key_y])
+#         obj.path_all.append( p )
+#
+#     del_first_time = True
+#     for ind_group,group_dir in enumerate(results_group.keys()):
+#         path_log = f'{path_root_new}/{group_dir}'
+#         if osp.exists(path_log):
+#             if overwrite:
+#                 if tools.safe_delete(path_log, confirm=del_first_time):
+#                     del_first_time= False
+#                 else:
+#                     overwrite = False # not ask again next time
+#                     continue
+#             else:
+#                 continue
+#
+#         logger = Logger('tensorflow,csv', path=path_log, file_basename='group')
+#         logger_log = Logger('log', path=path_log, file_basename='group')
+#         def log_result( _obj, name='' ):
+#             paths = '\n'.join( _obj.path_all )
+#             logger_log.log_str( f"name:{name},key:{key_y},len:{len(_obj.values_all)},paths:\n{paths}\n\n" )
+#             values = np.mean(_obj.values_all, axis=0)
+#
+#             for ind, global_step in enumerate(_obj.global_step):
+#                 keyvalues = dict(global_step=global_step)
+#                 keyvalues[f'{key_y}{name}'] = values[ind]
+#                 logger.log_keyvalues(**keyvalues)
+#
+#
+#             for i in range(ind_group, ind_group+2):
+#                 keyvalues = dict(global_step=i)
+#                 keyvalues[f'count{name}'] = len(_obj.values_all)
+#                 logger.log_keyvalues(**keyvalues)
+#
+#
+#         if not usefig:
+#             log_result( results_group[group_dir] )
+#         else:
+#             for _,group_fig in enumerate(results_group[group_dir].keys()):
+#                 log_result(results_group[group_dir][group_fig], f'/{group_fig}' )
+#
+#
+#         logger.close()
+#
+#     tools.print_(f'Written grouped result to:\n{path_root_new}', color='green')
+
 
 
 def flatten(unflattened, parent_key='', separator='.'):
