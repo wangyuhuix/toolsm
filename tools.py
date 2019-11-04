@@ -67,18 +67,18 @@ def pcname():
 def ispc(name):
     return pcname().__contains__(name)
 
-def get_savepathroot():
-    path_roots = {
-        'xiaoming': '/media/d/e/et',
-        'hugo': '/home/hugo/Desktop/wxm',
-    }
-    for key in path_roots:
-        if ispc(key):
-            path_root = path_roots[key]
-            break
-    else:
-        path_root = f"{os.environ['HOME']}/xm/et"  # TODO
-    return path_root
+# def get_savepathroot():
+#     path_roots = {
+#         'xiaoming': '/media/d/e/et',
+#         'hugo': '/home/hugo/Desktop/wxm',
+#     }
+#     for key in path_roots:
+#         if ispc(key):
+#             path_root = path_roots[key]
+#             break
+#     else:
+#         path_root = f"{os.environ['HOME']}/xm/et"  # TODO
+#     return path_root
 
 def FlagFromFile(filepath):
     filepath += '.cmd'
@@ -198,6 +198,7 @@ def text2texts_ints(text):
 
 import inspect
 
+from .logger import get_logger_dir
 
 
 # def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, depth=1, only_last_depth=, type='file', dir_end='', sort_reverse=None,  sort_number=False):

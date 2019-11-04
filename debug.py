@@ -1,6 +1,6 @@
 
 import os
-import tools
+from . import tools
 def equal_with_previous_run(objs, iteration, name, path):
     file = os.path.join(path, f'{name}_{iteration}.pkl')
     if not os.path.exists(file):

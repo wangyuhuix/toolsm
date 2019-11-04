@@ -1,11 +1,13 @@
 import fcntl
-import tools
+from . import tools
 
 from multiprocessing import Process, Pool
 import subprocess
 
 import os
 
+
+NOARGVALUE = '__NOARGVALUE__'
 
 
 def args_NameAndValues2args_list(args_NameAndValues:dict, args_default:dict={}, args_list = []):
@@ -139,7 +141,7 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
     '''
 
     import json
-    from tools_logger import Logger
+    from toolsm.logger import Logger
     logger = Logger( formats='log', **log_kwargs )
     args_NameAndValues_str = 'args_NameAndValues:\n' + json.dumps(args_NameAndValues, indent=4, separators=(',', ':'))
     args_default_str = 'args_default:\n' + json.dumps(args_default, indent=4, separators=(',', ':'))
@@ -158,12 +160,15 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
         args_call = args_call_base.copy()
         args_call_str = []
         for argname, arg_value in args.items():
-            if isinstance( arg_value, dict ):
-                arg_value = json.dumps(arg_value, separators=(',',':'))
-            else:
-                arg_value = str(arg_value)
-            args_call += [f'--{argname}', arg_value]
-            args_call_str += [ tools.colorize(f'-{argname}', color='black', bold=False), tools.colorize( str(arg_value) , 'green', bold=True )  ]
+            args_call += [f'--{argname}']
+            args_call_str += [tools.colorize(f'{argname}', color='black', bold=False)]
+            if arg_value != NOARGVALUE:
+                if isinstance( arg_value, dict ):
+                    arg_value = json.dumps(arg_value, separators=(',',':'))
+                else:
+                    arg_value = str(arg_value)
+                args_call += [ arg_value ]
+                args_call_str += [ tools.colorize( str(arg_value) , 'green', bold=True )  ]
         logger.log_str( json.dumps(args, indent=4, separators=(',', ':')) )
         print( ' '.join(args_call_str) )
         args_call_all.append( dict(args_call=args_call, ind=ind, n_total=len(args_list)))
@@ -216,7 +221,7 @@ def start_process(info):
     import time
     time_start = time.time()
     err_msgs = []
-    for i in range(3):
+    for i in range(2):
         try:
             subprocess.check_call(args_call)
             break
@@ -266,7 +271,7 @@ class FileLocker:
 
 def tes_filelocker():
 
-    import tools
+    from . import tools
     import time
     with FileLocker('t/a.locker'):
         with open('t/a.txt','a') as f:

@@ -140,7 +140,7 @@ def _get_envs_all_list(env_id, seed, path_logger, num_processes=4, num_envs=1):
 
 
 from PIL import Image
-import tools
+from . import tools
 if __name__ == '__main__':
     import  numpy as np
     #env = EnvClient(env_id='Pendulum-v0', seed=0, host='172.1.1.0', id_remote=1, num_processes=3 )

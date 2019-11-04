@@ -1,4 +1,4 @@
-import tools
+from . import tools
 import os.path as osp
 import json
 import os
@@ -7,32 +7,6 @@ import numpy as np
 
 import argparse
 
-def flatten(unflattened, parent_key='', separator='.'):
-    items = []
-    for k, v in unflattened.items():
-        if separator in k:
-            raise ValueError(
-                "Found separator ({}) from key ({})".format(separator, k))
-        new_key = parent_key + separator + k if parent_key else k
-        if isinstance(v, collections.MutableMapping) and v:
-            items.extend(flatten(v, new_key, separator=separator).items())
-        else:
-            items.append((new_key, v))
-
-    return dict(items)
-
-def unflatten(flattened, separator='.'):
-    result = {}
-    for key, value in flattened.items():
-        parts = key.split(separator)
-        d = result
-        for part in parts[:-1]:
-            if part not in d:
-                d[part] = {}
-            d = d[part]
-        d[parts[-1]] = value
-
-    return result
 
 from dotmap import DotMap
 def arg2str(i):
@@ -61,18 +35,28 @@ def arg_parser():
     return argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 
-def get_logger_dir(name_project=None):
-    if tools.ispc('xiaoming'):
-        root_dir = '/media/d/e/et'
-    else:
-        root_dir = f"{os.environ['HOME']}/xm/et"
-    if name_project is not None:
-        root_dir = f'{root_dir}/{name_project}'
+def get_logger_dir(name_project=None, path_result_release=None, dir_result_release='results'):
+    root_dir = None
+    if path_result_release is not None:
+        import inspect
+        if inspect.ismodule(path_result_release):
+            path_result_release = os.path.dirname(  path_result_release.__file__ )
+        if os.path.exists( os.path.join(path_result_release, '.release') ):
+            root_dir = path_result_release
+            root_dir = os.path.join( root_dir, dir_result_release )
+
+    if root_dir is None:
+        if tools.ispc('xiaoming'):
+            root_dir = '/media/d/e/et'
+        else:
+            root_dir = f"{os.environ['HOME']}/xm/et"
+        if name_project is not None:
+            root_dir = os.path.join(root_dir, name_project)
     return root_dir
 
 
 # TODO: when the dir is running by other thread, we should also exited.
-def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_project='tmpProject'):
+def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_dir=''):
     '''
     Please add the following keys to the argument:
         parser.add_argument('--log_dir_mode', default='finish_then_exit_else_overwrite', type=str)#finish_then_exit_else_overwrite
@@ -116,12 +100,13 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
         print( f'args.name_group is empty. it is set to be {args.name_task}' )
 
     # -------------- get root directory -----------
-    if tools.ispc('xiaoming'):
-        root_dir = '/media/d/e/et'
-    else:
-        root_dir = f"{os.environ['HOME']}/xm/et"
-
-    root_dir = f'{root_dir}/{name_project}'
+    # if tools.ispc('xiaoming'):
+    #     root_dir = '/media/d/e/et'
+    # else:
+    #     root_dir = f"{os.environ['HOME']}/xm/et"
+    #
+    # root_dir = f'{root_dir}/{name_project}'
+    # root_dir =
 
     # ----------- get sub directory -----------
     keys_exclude.extend(['log_dir_mode','name_group','keys_group', 'name_run'])
@@ -241,6 +226,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], name_
     args_json['__timenow'] = tools.time_now_str()
     tools.save_json( os.path.join(args.log_dir, 'args.json'), args_json )
     return args
+
 
 def get_finish_file(path):
     return os.path.join(f'{path}', '.finish_indicator')
@@ -625,7 +611,7 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
     :return: results[keys_args_main][key and value of keys_args_sub]
     :rtype:
     '''
-    import tools
+    from . import tools
     import pandas as pd
 
     if path_root[-1] == '/':
@@ -807,7 +793,7 @@ def write_group_result(path_root, results_group, names_y, format='tensorflow', g
 
 
 def group_result_(path_root, depth, key_x, key_y, keys_dir, keys_fig, file_args='args.json', file_process='process.csv', read_csv_args=dict( sep=',' ), name=None, overwrite=False):
-    import tools
+    from . import tools
     import pandas as pd
 
     if path_root[-1] == '/':
@@ -954,3 +940,30 @@ def tes_groupresult():
     # prepare_dirs( args, args_dict )
     # exit()
 
+
+def flatten(unflattened, parent_key='', separator='.'):
+    items = []
+    for k, v in unflattened.items():
+        if separator in k:
+            raise ValueError(
+                "Found separator ({}) from key ({})".format(separator, k))
+        new_key = parent_key + separator + k if parent_key else k
+        if isinstance(v, collections.MutableMapping) and v:
+            items.extend(flatten(v, new_key, separator=separator).items())
+        else:
+            items.append((new_key, v))
+
+    return dict(items)
+
+def unflatten(flattened, separator='.'):
+    result = {}
+    for key, value in flattened.items():
+        parts = key.split(separator)
+        d = result
+        for part in parts[:-1]:
+            if part not in d:
+                d[part] = {}
+            d = d[part]
+        d[parts[-1]] = value
+
+    return result
