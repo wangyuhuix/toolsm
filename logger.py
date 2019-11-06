@@ -97,7 +97,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
 
     if not args.name_group:
         args.name_group = 'tmpGroup'
-        print( f'args.name_group is empty. it is set to be {args.name_task}' )
+        print( f'args.name_group is empty. It is set to be {args.name_group}' )
 
     # -------------- get root directory -----------
     # if tools.ispc('xiaoming'):
@@ -927,7 +927,6 @@ def plot_group_result(task_setting_all, alg_setting_all, path_root_data, path_ro
 
 
 def write_group_result(path_root, results_group, names_y, group_name=None, overwrite=False):
-    assert format == 'tensorflow', 'Not implement'
 
     path_root_new = f'{path_root},group'
     if group_name:
