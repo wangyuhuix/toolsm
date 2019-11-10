@@ -463,8 +463,8 @@ def equal(a, b, disp=False):
         return res
     return True
 
-def time_now_str():
-    return time.strftime('%m/%d|%H:%M:%S', time.localtime())
+def time_now_str(fmt='%m/%d|%H:%M:%S'):
+    return time.strftime(fmt, time.localtime())
 
 def time_now_str_filename():
     return time.strftime('%m_%d_%H_%M_%S', time.localtime())
