@@ -172,9 +172,7 @@ def multiarr2meshgrid(arrs):
 
 
 
-def _get_files_dirs(path_root='', path_rel='', filter_=None, depth=1, only_last_depth=False, type='file', dir_end='', sort=False, sort_reverse=None, sort_number=False, suffix=None):
-    if sort and sort_reverse is None:
-        sort_reverse = False
+def _get_files_dirs(path_root='', path_rel='', filter_=None, depth=1, only_last_depth=False, type='file', dir_end='', sort=None, suffix=None):
     if suffix is not None:
         filter_suffix = lambda x: x.endswith(suffix)
         if filter_ is not None:
@@ -182,7 +180,7 @@ def _get_files_dirs(path_root='', path_rel='', filter_=None, depth=1, only_last_
             filter_ = lambda x: filter_t(x) and filter_suffix(x)
         else:
             filter_ = filter_suffix
-    return _get_files_dirs_entity(path_root, path_rel, filter_, depth, only_last_depth, type, dir_end, sort_reverse,  sort_number)
+    return _get_files_dirs_entity(path_root, path_rel, filter_, depth, only_last_depth, type, dir_end, sort)
 
 import re
 def text2int(text):
@@ -201,7 +199,7 @@ import inspect
 
 
 # def _get_files_dirs_entity(path_root='', path_rel='', filter_=None, depth=1, only_last_depth=, type='file', dir_end='', sort_reverse=None,  sort_number=False):
-def _get_files_dirs_entity(path_root, path_rel, filter_, depth, only_last_depth, type, dir_end, sort_reverse,  sort_number):
+def _get_files_dirs_entity(path_root, path_rel, filter_, depth, only_last_depth, type, dir_end, sort):
     '''
     :param path_root:
     :type path_root:
@@ -217,10 +215,8 @@ def _get_files_dirs_entity(path_root, path_rel, filter_, depth, only_last_depth,
     :type type:
     :param dir_end:
     :type dir_end:
-    :param sort_reverse:
-    :type sort_reverse:
-    :param sort_number:
-    :type sort_number:
+    :param sort: 'ascend', 'descend','number'
+    :type sort: str
     :return:
     :rtype:
     '''
@@ -231,11 +227,11 @@ def _get_files_dirs_entity(path_root, path_rel, filter_, depth, only_last_depth,
     files = []
     dirs_ = []
     lists = os.listdir(os.path.join(path_root, path_rel))
-    if sort_reverse is not None or sort_number:
+    if sort is not None:
         kwargs_sort = {}
-        if sort_reverse is not None:
+        if 'descend' in sort:
             kwargs_sort.update(reverse=sort_reverse )
-        if sort_number:
+        if 'number' in sort:
             kwargs_sort.update(key=text2texts_ints)
         lists.sort(**kwargs_sort)
 
@@ -266,7 +262,7 @@ def _get_files_dirs_entity(path_root, path_rel, filter_, depth, only_last_depth,
 
     return obj_return
 
-def get_files(path_rel='',path_root='',  filter_=None, depth=1, only_last_depth=False, sort=None, sort_reverse=None, sort_number=False, suffix=None):
+def get_files(path_rel='',path_root='',  filter_=None, depth=1, only_last_depth=False, sort=None, suffix=None):
     '''
     :param filter_:a function returns true or false. e.g. lamabda filename: filename.__contains__('xxx')
     '''
@@ -276,7 +272,7 @@ def get_files(path_rel='',path_root='',  filter_=None, depth=1, only_last_depth=
     return _get_files_dirs( **kwargs, type='file' )
 
 #TODO contains not contains
-def get_dirs(path_rel='', path_root='', filter_=None, depth=1, only_last_depth=False, dir_end='', sort=None, sort_reverse=None, sort_number=False, suffix=None):
+def get_dirs(path_rel='', path_root='', filter_=None, depth=1, only_last_depth=False, dir_end='', sort=None, suffix=None):
     '''
     :param filter_:a function returns true or false. e.g. lamabda filename: filename.__contains__('xxx')
     '''
@@ -480,7 +476,7 @@ def check_safe_path(path, confirm=True, depth=4, require_not_containsub=False, n
     depth_min = 4
     assert depth >= depth_min, f'depth is at least {depth_min}, please modfiy your code for calling check_safe_path()'
     assert re.match(
-        ''.join([ "^/(home|media)(/[^/]+){",str(depth-1),",}" ])
+        ''.join([ "^/(home|media|root)(/[^/]+){",str(depth-1),",}" ])
         ,path), f'At least operate {depth}-th depth sub-directory!\n{path}'
     contents = ''
     if not os.path.isfile( path ):

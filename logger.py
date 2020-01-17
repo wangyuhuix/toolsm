@@ -34,14 +34,23 @@ def arg_parser():
     import argparse
     return argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
+def is_release(path_result_release):
+    '''
+
+    :param path_result_release:
+    :type path_result_release:
+    :return: Whether the code is the released version
+    :rtype:
+    '''
+    import inspect
+    if inspect.ismodule(path_result_release):
+        path_result_release = os.path.dirname(  path_result_release.__file__ )
+    return os.path.exists( os.path.join(path_result_release, '.release') )
 
 def get_logger_dir(name_project=None, path_result_release=None, dir_result_release='results'):
     root_dir = None
     if path_result_release is not None:
-        import inspect
-        if inspect.ismodule(path_result_release):
-            path_result_release = os.path.dirname(  path_result_release.__file__ )
-        if os.path.exists( os.path.join(path_result_release, '.release') ):
+        if is_release(path_result_release):
             root_dir = path_result_release
             root_dir = os.path.join( root_dir, dir_result_release )
 
@@ -109,7 +118,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
     # root_dir =
 
     # ----------- get sub directory -----------
-    keys_exclude.extend(['log_dir_mode','name_group','keys_group', 'name_run'])
+    keys_exclude.extend(['log_dir_mode','name_group','keys_group', 'name_run', 'is_multiprocess'])
     keys_exclude.extend(args.keys_group)
     if key_first is not None:
         keys_exclude.append(key_first)
@@ -604,6 +613,9 @@ def group_result(task_setting_all, fun_load, operation, path_root, methods_dir2s
         tools.mkdir(path_group)
         keys_y = task_setting['keys_y']
         key_global_step = task_setting['key_global_step']
+
+
+
         keys_args_env = task_setting['keys_args_env']
         if operation == 'fig_generateresult':
             results_group = get_group_result(
@@ -855,6 +867,7 @@ def plot_group_result(task_setting_all, alg_setting_all, path_root_data, path_ro
                     alg_setting_specify = env_setting['algs'][alg]
                     print(alg_setting_specify)
                     alg_setting.update(alg_setting_specify)
+                # print(env_name,alg)
                 x_axis = results_group[env_name][alg][task_setting.xaxis]
                 y_axis = results_group[env_name][alg][task_setting.yaxis]
                 y_axis = savgol_filter(y_axis, window_length=alg_setting.window_length, polyorder=1)
@@ -888,7 +901,11 @@ def plot_group_result(task_setting_all, alg_setting_all, path_root_data, path_ro
             if xticks_setting.has_key('unit'):
                 xlabel = f'{xlabel}({xticks_setting.unit})'
             plt.xlabel(xlabel, fontsize=fontsize, labelpad=4)
-            env_name = env_name.replace('', '').replace('-v1', '').replace('-v2', '').replace('-v3', '')
+            # env_name = env_name.replace('', '').replace('-v1', '').replace('-v2', '').replace('-v3', '')
+            if '-v' in env_name:
+                env_name = env_name.split('-v')[0]
+            env_name = env_name.replace('NoFrameskip', '')
+
             plt.title(env_name, fontsize=fontsize + 3)
 
             path_save = f"{path_root_save}/{task_setting.dir}"
