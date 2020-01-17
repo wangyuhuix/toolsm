@@ -34,7 +34,13 @@ def arg_parser():
     import argparse
     return argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-def is_release(path_result_release):
+def get_path_package(package):
+    import inspect
+    if inspect.ismodule(package):
+        package = os.path.dirname(package.__file__)
+    return package
+
+def is_release(package_or_path):
     '''
 
     :param path_result_release:
@@ -42,25 +48,21 @@ def is_release(path_result_release):
     :return: Whether the code is the released version
     :rtype:
     '''
-    import inspect
-    if inspect.ismodule(path_result_release):
-        path_result_release = os.path.dirname(  path_result_release.__file__ )
-    return os.path.exists( os.path.join(path_result_release, '.release') )
+    return os.path.exists(os.path.join(get_path_package(package_or_path), '.release'))
 
-def get_logger_dir(name_project=None, path_result_release=None, dir_result_release='results'):
-    root_dir = None
-    if path_result_release is not None:
-        if is_release(path_result_release):
-            root_dir = path_result_release
-            root_dir = os.path.join( root_dir, dir_result_release )
+def get_logger_dir(name_project=None, package_or_path=None, dir_result_release='results'):
 
-    if root_dir is None:
-        if tools.ispc('xiaoming'):
-            root_dir = '/media/d/e/et'
-        else:
-            root_dir = f"{os.environ['HOME']}/xm/et"
-        if name_project is not None:
-            root_dir = os.path.join(root_dir, name_project)
+    if package_or_path is not None:
+        if is_release(package_or_path):
+            root_dir = os.path.join( get_path_package(package_or_path), dir_result_release )
+            return root_dir
+
+    if tools.ispc('xiaoming'):
+        root_dir = '/media/d/e/et'
+    else:
+        root_dir = f"{os.environ['HOME']}/xm/et"
+    if name_project is not None:
+        root_dir = os.path.join(root_dir, name_project)
     return root_dir
 
 
