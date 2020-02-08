@@ -54,7 +54,7 @@ def get_logger_dir(dir_log_debug=None, dir_log_release=None, dir_indicator=None)
     if dir_indicator is not None:
         assert dir_log_release is not None
         if is_release(dir_indicator):
-            root_dir = os.getcwd()
+            root_dir = get_path_package(dir_indicator)
             if dir_log_release is not None:
                 root_dir = os.path.join( root_dir, dir_log_release)
             return root_dir
