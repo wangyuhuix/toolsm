@@ -50,19 +50,21 @@ def is_release(package_or_path):
     '''
     return os.path.exists(os.path.join(get_path_package(package_or_path), '.release'))
 
-def get_logger_dir(name_project=None, package_or_path=None, dir_result_release='results'):
-
-    if package_or_path is not None:
-        if is_release(package_or_path):
-            root_dir = os.path.join( get_path_package(package_or_path), dir_result_release )
+def get_logger_dir(dir_log_debug=None, dir_log_release=None, dir_indicator=None):
+    if dir_indicator is not None:
+        assert dir_log_release is not None
+        if is_release(dir_indicator):
+            root_dir = os.getcwd()
+            if dir_log_release is not None:
+                root_dir = os.path.join( root_dir, dir_log_release)
             return root_dir
 
     if tools.ispc('xiaoming'):
         root_dir = '/media/d/e/et'
     else:
         root_dir = f"{os.environ['HOME']}/xm/et"
-    if name_project is not None:
-        root_dir = os.path.join(root_dir, name_project)
+    if dir_log_debug is not None:
+        root_dir = os.path.join(root_dir, dir_log_debug)
     return root_dir
 
 

@@ -62,7 +62,12 @@ def mkdirs(dir):
     return False
 
 def pcname():
-    return os.uname().nodename
+    import platform
+    sys = platform.system()
+    if sys == 'Windows':
+        return platform.uname().node
+    else:
+        return os.uname().nodename
 
 def ispc(name):
     return pcname().__contains__(name)
@@ -607,12 +612,13 @@ if __name__ == '__main__':
 #         return args, path_logger, file_arg
 #
 #
-# def load_config(filename):
-#     with open(filename, 'r') as f:
-#         args_str = f.read()
-#         args = demjson.decode(args_str)
-#         args = Namespace(args)
-#         return args
+def load_config(filename):
+    import demjson
+    with open(filename, 'r') as f:
+        args_str = f.read()
+        args = demjson.decode(args_str)
+        args = Namespace(args)
+        return args
 
 
 
