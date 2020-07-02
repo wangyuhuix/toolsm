@@ -7,6 +7,8 @@ import numpy as np
 
 import argparse
 
+import pandas as pd
+
 
 from dotmap import DotMap
 def arg2str(i):
@@ -223,7 +225,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
 
             if flag_move_dir == 'y' \
                 and \
-                np.all(tools.check_safe_path( dirs_full[d_mid], confirm=False) for d_type in dirs_type):
+                np.all(tools.check_safe_path( dirs_full[d_type], confirm=False) for d_type in dirs_type):
                 import shutil
                 for d_type in dirs_type:
                     if osp.exists(dirs_full[d_type]):
@@ -603,100 +605,125 @@ def _strlist2list(keys):
     return keys
 
 
+# NOTE: This function has been changed in 2020/07/02, please modfiy your code
+def group_result(task_all, task_type, fn_get_fn_loaddata, path_root, dirname_2_setting=None):
+    '''
+    You should organize your result in the following way:
+        <algorithm, e.g., name and setting>/<run, e.g., environments, seeds>/
+    Within the running result directory, you should include:
+        - <INFO file> which record the running arguments
+        - <RESULT file> which record the runing results
 
-def group_result(task_setting_all, fun_load, operation, path_root, methods_dir2setting={}):
-    task_setting_default = dict(
-        key_global_step='total_timesteps',
-        keys_args_env='env'
+    :param task_all: The group tasks
+    :type task_all:
+    :param task_type:
+    :type task_type:
+    :param fn_loaddata:
+    :type fn_loaddata:
+    :param path_root:
+    :type path_root:
+    :param dirname_2_setting:
+    :type dirname_2_setting:
+    :return:
+    :rtype:
+    '''
+
+    # NOT GENERAL! Personal habit!
+    task_default = dict(
+        key_global_step_IN_result='total_timesteps',
+        key_env_IN_info='env'
     )
-    for task_setting in task_setting_all:
-        if 'keys_y' not in task_setting.keys():
-            task_setting['keys_y'] = task_setting.dir
-        for k in task_setting_default:
-            if k not in task_setting:
-                task_setting[k] = task_setting_default[k]
-    for task_setting in task_setting_all:
-        dir_ = task_setting.dir
+    for task in task_all:
+        if 'keys_y' not in task.keys():
+            task['keys_y'] = task.dir
+        for k in task_default:
+            if k not in task:
+                task[k] = task_default[k]
+
+
+
+    for task in task_all:
+        dir_ = task.dir
         path = f'{path_root}/{dir_}'
         path_group = f'{path},group'
         tools.mkdir(path_group)
-        keys_y = task_setting['keys_y']
-        key_global_step = task_setting['key_global_step']
+        keys_y = task['keys_y']
+        key_global_step = task['key_global_step']
 
 
-
-        keys_args_env = task_setting['keys_args_env']
-        if operation == 'fig_generateresult':
-            results_group = get_group_result(
+        key_arg_env = task['key_arg_env']
+        if task_type == 'Generate_Result_For_Plot':
+            result_grouped = get_result_grouped(
                 path_root = path,
                 depth=2,
-                keys_args_main=keys_args_env,
-                keys_args_sub=-2,
-                fun_load=fun_load( keys_y, key_global_step=key_global_step )
+                keys_info_main=key_arg_env,
+                keys_info_sub=-2,
+                fn_loaddata=fn_get_fn_loaddata(keys_y, key_global_step=key_global_step)
             )
             # modify env name
-            envs = list( results_group.keys())
+            envs = list( result_grouped.keys())
             for env in envs:
                 env_new = env.replace('env=','')
-                results_group[env_new] = results_group.pop(env)
-            # modify method name
-            if len(methods_dir2setting.keys() ) > 0:
-                for env in results_group:
-                    dirs_all = list(results_group[env].keys())
+                result_grouped[env_new] = result_grouped.pop(env)
+
+            if dirname_2_setting is not None:
+                # modify method name
+                for env in result_grouped:
+                    dirs_all = list(result_grouped[env].keys())
                     for dir_ in dirs_all:
-                        results_group[env][ methods_dir2setting[dir_]['name']] = results_group[env].pop(dir_)
-            tools.save_vars( f'{path_group}/results_group.pkl', results_group, verbose=1 )
-        elif operation == 'check':
-            results_group = tools.load_vars(f'{path_group}/results_group.pkl')
+                        result_grouped[env][ dirname_2_setting[dir_]['name']] = result_grouped[env].pop(dir_)
+            else:
+                # print the code of seeting dirname_2_setting
+                for env in result_grouped:
+                    for dir_ in result_grouped[env]:
+                        dirname_2_setting[dir_] = "dict()"
+
+                methods_jsonstr = tools.json2str(dirname_2_setting, remove_quotes_key=False, remove_brace=False, remove_quotes_value=True, indent='\t')
+                methods_jsonstr = methods_jsonstr.replace('"',"'")
+                print( methods_jsonstr )
+
+            tools.save_vars( f'{path_group}/results_group.pkl', result_grouped, verbose=1 )
+
+        elif task_type == 'check':
+            result_grouped = tools.load_vars(f'{path_group}/results_group.pkl')
             pass
-        elif operation == 'generate_methods_dir2setting':#for
-            results_group = tools.load_vars(f'{path_group}/results_group.pkl')
-            for env in results_group:
-                for dir_ in results_group[env]:
-                    methods_dir2setting[dir_] = "dict()"
-        elif operation == 'tf':
-            results_group = get_group_result(
+        elif task_type == 'Generate_Tensorflow':
+            result_grouped = get_result_grouped(
                 path_root = path,
                 depth=2,
-                keys_args_main=-2,
-                keys_args_sub=keys_args_env,
-                fun_load=fun_load( keys_y, key_global_step=key_global_step )
+                keys_info_main=-2,
+                keys_info_sub=key_arg_env,
+                fn_loaddata=fn_get_fn_loaddata(keys_y, key_global_step=key_global_step)
             )
-            write_group_result(
+            write_result_grouped_tensorflow(
                 path_root=path,
-                results_group=results_group,
+                result_grouped=result_grouped,
                 names_y=keys_y,
-                overwrite=1
+                overwrite=True
             )
         else:
             raise NotImplementedError
-    if operation == 'generate_methods_dir2setting':
-        methods_jsonstr = tools.json2str( methods_dir2setting, remove_quotes_key=False, remove_brace=False, remove_quotes_value=True , indent='\t' )
-        methods_jsonstr = methods_jsonstr.replace('"',"'")
-        print( methods_jsonstr )
 
 
 
-def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, file_args='args.json'):
+
+def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loaddata, file_info='args.json'):
     '''
-    load from directories.
-    The directories load:
-        - contains <finish> file
-        - contains args file(optional, e.g., args.json): it is used for generate name of figures.
+    Load from directories.
+        - contain <finish> file
+        - contain <file_info> file(e.g., args.json)
     :param path_root:
     :type path_root:
     :param depth:
     :type depth:
-    :param keys_args_main:
-    :type keys_args_main:
-    :param keys_args_sub:
-    :type keys_args_sub:
-    :param funs_load:
-    :type funs_load:
-    :param funs_name:
-    :type funs_name:
-    :param file_args:
-    :type file_args:
+    :param keys_info_main:
+    :type keys_info_main:
+    :param keys_info_sub:
+    :type keys_info_sub:
+    :param fn_loaddata:
+    :type fn_loaddata:
+    :param file_info:
+    :type file_info:
     :return: results[keys_args_main][key and value of keys_args_sub]
     :rtype:
     '''
@@ -706,77 +733,72 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
     if path_root[-1] == '/':
         path_root = path_root[:-1]
 
+    # Not General, just for my personal habit...
+    filter_ = lambda x: all([(s not in x) for s in ['notusing', ',tmp']])
+    path_all = tools.get_dirs(path_root, depth=depth, only_last_depth=True, filter_=filter_)
 
 
-    # names_funs =
+    if isinstance(keys_info_main, str):
+        keys_info_main = _strlist2list(keys_info_main)
 
-    paths = tools.get_dirs(path_root, depth=depth, only_last_depth=True, filter_=lambda x: all([  (s not in x) for s in ['notusing',',tmp'] ]) )
-    # for p in paths:
-    #     print(p)
-
-    # group_keys = 'alg,alg_args'.split(',')
-    if isinstance(keys_args_main, str):
-        keys_args_main = _strlist2list(keys_args_main)
-
-    if isinstance(keys_args_sub, str):
-        keys_args_sub = _strlist2list(keys_args_sub)
-
-
-    import os.path as osp
-    # if osp.exists(path_root_new):
-    #     tools.safe_delete(path_root_new, require_not_containsub=False)
+    if isinstance(keys_info_sub, str):
+        keys_info_sub = _strlist2list(keys_info_sub)
 
 
     from dotmap import DotMap
 
-    import numpy as np
-
-    import re
     results_group = dict()
-    if isinstance(keys_args_sub, list):
-        contain_subtask = len( keys_args_sub ) > 0
+    if isinstance(keys_info_sub, list):
+        contain_subtask = len(keys_info_sub) > 0
     else:
-        contain_subtask = keys_args_sub is not None
-    from tqdm import tqdm
-    process = tqdm( total=len(paths) )
-    keys_args_main_ori = keys_args_main
-    for p in paths:
-        # if any(  [(not os.path.exists( f'{p}/{f}' )) for f in [file_args]] ):
-        #     tools.warn_( f'{file_args} not exists' )
-        #     continue
+        contain_subtask = keys_info_sub is not None
 
-        path_split = p.split('/')
-        if not exist_finish_file(p):
-            tools.warn_(f'not finish:\n{p}')
+    from tqdm import tqdm
+    process = tqdm( total=len(path_all) )
+    keys_args_main_ori = keys_info_main
+    for path in path_all:
+
+        path_split = path.split('/')
+
+        # Not General, just for my personal habit...
+        if not exist_finish_file(path):
+            tools.warn_(f'not finish:\n{path}')
             continue
 
-        args = tools.load_json(f'{p}/{file_args}')
-        if 'env' in args.keys():
-            args['env'] = args['env'].split('-v')[0]
-        if isinstance(keys_args_main, list):
-            keys_args_main = keys_args_main_ori.copy()
+        info = tools.load_json(f'{path}/{file_info}')
+
+        # Not general, just for my personal habit....
+        if 'env' in info.keys():
+            info['env'] = info['env'].split('-v')[0]
+
+
+        if isinstance(keys_info_main, list):
+            keys_info_main = keys_args_main_ori.copy()
             # TODO: may have bug
-            for i_,k_ in list(enumerate(keys_args_main)):
-                if k_ not in args.keys():
-                    keys_args_main.remove(k_)
-            name_method = tools.json2str(args, separators=(',', '='), keys_include=keys_args_main, remove_quotes_key=True, remove_brace=True)
-        elif isinstance(keys_args_main, int):
-            name_method = path_split[keys_args_main]
+            for i_,k_ in list(enumerate(keys_info_main)):
+                if k_ not in info.keys():
+                    keys_info_main.remove(k_)
+            name_method = tools.json2str(info, separators=(',', '='), keys_include=keys_info_main, remove_quotes_key=True, remove_brace=True)
+        elif isinstance(keys_info_main, int):
+            # Use directory name as keys_info_main
+            name_method = path_split[keys_info_main]
+
+            # Not general, just for my personal habit....
             name_method = name_method.replace('Link to ','')
             name_method = name_method.replace(',tidy.eval', '')
+
+
         term = DotMap(path_all=[], args_all=[])
-        # for name in names_funs:
-        #     term[f'{name}_all'] = []
 
         if not contain_subtask:
             if name_method not in results_group.keys():
                 results_group[name_method] = term.copy()
             obj = results_group[name_method]
         else:#contains sub figure
-            if isinstance(keys_args_sub, list):
-                name_task = tools.json2str(args, separators=(',', '='), keys_include=keys_args_sub, remove_quotes_key=True, remove_brace=True)
-            elif isinstance(keys_args_sub, int):
-                name_task = path_split[keys_args_sub]
+            if isinstance(keys_info_sub, list):
+                name_task = tools.json2str(info, separators=(',', '='), keys_include=keys_info_sub, remove_quotes_key=True, remove_brace=True)
+            elif isinstance(keys_info_sub, int):
+                name_task = path_split[keys_info_sub]
                 name_task = name_task.replace('Link to ','')
                 name_task = name_task.replace(',tidy.eval', '')
 
@@ -786,26 +808,26 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
                 results_group[name_method][name_task] = term.copy()
             obj = results_group[name_method][name_task]
 
-        obj.path_all.append( p )
-        obj.args_all.append( args )
+        obj.path_all.append( path )
+        obj.args_all.append( info )
 
-
-        # global_steps, names, values = f(p, args)
-        items = fun_load(p, args)
+        items = fn_loaddata(path, info)
         if items is None:
             continue
         for item in items:
             if item is None:
                 continue
             name, global_steps, values = item
-            tools.save_s(f'{p}/len={len(global_steps)}', '')
+
+            tools.save_s(f'{path}/len={len(global_steps)}', '')
+            
             if f'{name}_all' not in obj.keys():
-                obj[f'{name}_global_steps'] = global_steps #overwrite the old values
-                obj[f'{name}_global_steps_p'] = p
+                obj[f'{name}_global_steps'] = global_steps 
+                obj[f'{name}_global_steps_path'] = path
                 obj[f'{name}_all'] = []
             else:
                 if len( global_steps ) != len( obj[f'{name}_global_steps'] ):
-                    tools.warn_( f"length not equal:\n{p}\noldp:{obj[f'{name}_global_steps_p']}" )
+                    tools.warn_( f"length not equal:\n{path}\noldp:{obj[f'{name}_global_steps_path']}" )
                     continue
             obj[f'{name}_all'].append( values )
 
@@ -813,7 +835,7 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
         process.update(1)
     return results_group
 
-def plot_group_result(task_setting_all, alg_setting_all, path_root_data, path_root_save, fontsize , IS_DEBUG=False):
+def plot_result_grouped(task_setting_all, alg_setting_all, path_root_data, path_root_save, fontsize, IS_DEBUG=False):
     import toolsm.plt
     from scipy.signal import savgol_filter
     import matplotlib.pyplot as plt
@@ -845,6 +867,7 @@ def plot_group_result(task_setting_all, alg_setting_all, path_root_data, path_ro
 
             if not env_setting.has_key('legend'):
                 env_setting.legend = False
+
     for task_setting in task_setting_all:
         task_setting.path = f"{path_root_data}/{task_setting.dir},group/results_group.pkl"
         f = open(task_setting.path, 'rb')
@@ -952,19 +975,19 @@ def plot_group_result(task_setting_all, alg_setting_all, path_root_data, path_ro
                 plt.show()
 
 
-def write_group_result(path_root, results_group, names_y, group_name=None, overwrite=False):
+def write_result_grouped_tensorflow(*, path_root, result_grouped, names_y,  overwrite=False, name_group=None):
 
     path_root_new = f'{path_root},group'
-    if group_name:
-        path_root_new += f',{group_name}'
+    if name_group:
+        path_root_new += f',{name_group}'
 
     if isinstance(names_y, str):
         names_y = _strlist2list(names_y)
     tools.mkdir(path_root_new)
-    contain_subtask = not ('path_all' in list(results_group.values())[0].keys())
+    contain_subtask = not ('path_all' in list(result_grouped.values())[0].keys())
 
     del_first_time = True
-    for ind_group,name_main in enumerate(results_group.keys()):
+    for ind_group,name_main in enumerate(result_grouped.keys()):
         path_log = f'{path_root_new}/{name_main}'
         if osp.exists(path_log):
             if overwrite:
@@ -1004,16 +1027,139 @@ def write_group_result(path_root, results_group, names_y, group_name=None, overw
 
 
         if not contain_subtask:
-            log_result( results_group[name_main] )
+            log_result(result_grouped[name_main])
         else:
-            for _,name_sub in enumerate( results_group[name_main].keys() ):
+            for _,name_sub in enumerate(result_grouped[name_main].keys()):
                 # print(f'{name_main},{name_sub}')
-                log_result( results_group[name_main][name_sub], f'/{name_sub}' )
+                log_result(result_grouped[name_main][name_sub], f'/{name_sub}')
 
 
         logger.close()
 
     tools.print_(f'Written grouped result to:\n{path_root_new}', color='green')
+
+
+def get_load_debugs_fn(keys_y, **kwargs):
+    if not isinstance(keys_y, list):
+        keys_y = [keys_y]
+    def load_debugs_entity( p, args ):
+
+        results_all = []
+        filename_global_step = 'process.csv'
+        read_csv_args = dict(sep='\t') #TODO: The ',' version
+        file_global_step = f'{p}/{filename_global_step}'
+        key_global_step = 'total_timesteps'
+        process = pd.read_csv(file_global_step, **read_csv_args)
+        global_steps = process.loc[:, key_global_step]
+
+
+        file_debugs = f'{p}/debugs.pkl'
+        if not osp.exists( file_debugs ):
+            tools.warn_( f'not exist:\n{file_debugs}' )
+            return None
+        for key_y in keys_y:
+            debugs = tools.load_vars( file_debugs )
+            # global_steps = []
+            values = []
+            if key_y == 'fraction_bad_solution_ratio':
+                # ratio*adv<adv and |ratio-1|>cliprange
+                for ind,item in enumerate(debugs):
+                    ratios = item['ratios']
+                    advs = item['advs']
+                    cliprange = args['clipargs']['cliprange']
+                    satisfy = np.logical_and( ratios * advs < advs, np.abs(ratios-1)> cliprange )
+                    frac = np.mean( satisfy.astype(np.float)  )
+                    # global_steps.append(ind)
+                    values.append( frac )
+            elif key_y == 'fraction_bad_solution_kl':
+                # ratio*adv<adv and |ratio-1|>cliprange
+                for ind,item in enumerate(debugs):
+                    ratios = item['ratios']
+                    kls = item['kls']
+                    advs = item['advs']
+                    klrange = args['clipargs']['klrange']
+                    satisfy = np.logical_and( ratios * advs < advs, kls > klrange )
+                    frac = np.mean( satisfy.astype(np.float)  )
+                    # global_steps.append(ind)
+                    values.append( frac )
+            elif key_y == 'fraction_ratio_out_of_range':
+                # |ratio-1|>cliprange
+                for ind,item in enumerate(debugs):
+                    ratios = item['ratios']
+                    advs = item['advs']
+                    cliprange = args['clipargs']['cliprange']
+                    # print(p, '\n', args)
+                    # satisfy = np.logical_and( np.abs(ratios-1)> cliprange, ratios*advs >= advs )
+                    satisfy = np.abs(ratios - 1) > cliprange
+                    frac = np.mean( satisfy.astype(np.float)  )
+                    # global_steps.append(ind)
+                    values.append( frac )
+            elif key_y == 'maximum_ratio':
+                for ind,item in enumerate(debugs):
+                    ratios = item['ratios']
+                    # global_steps.append(ind)
+                    values.append( ratios.max() )
+            elif key_y == 'maximum_kl':
+                for ind,item in enumerate(debugs):
+                    kls = item['kls']
+                    # global_steps.append(ind)
+                    values.append( kls.max() )
+            else:
+                for ind,item in enumerate(debugs):
+                    vs = item[key_y]
+                    # global_steps.append(ind)
+                    values.append( vs )
+            results_all.append( (key_y, global_steps, values ) )
+        return results_all
+
+    return load_debugs_entity
+
+def get_load_csv_fn(keys_y, key_global_step='global_step', filename='process.csv', args_readfile=None):
+    if args_readfile is None:
+        args_readfile = dict(sep='\t')
+
+    if not isinstance(keys_y, list):
+        keys_y = [keys_y]
+
+    def load_csv_entity(p, *args, **kwargs):
+        # Not General. For personal habit
+        if 'alg=trpo' in p:
+            key_global_step_t = 'global_step'
+        else:
+            key_global_step_t = key_global_step
+
+        file = f'{p}/{filename}'
+        if not osp.exists( file ):
+            tools.warn_( f'not exist:\n{file}' )
+            return None
+        process = pd.read_csv(file, **args_readfile)
+        results_all = []
+        global_steps_ori = process.loc[:, key_global_step_t]
+
+        for key_y in keys_y:
+            v_ori = process.loc[:, key_y]
+            # Not General. For personal habit
+            if key_y == 'eprewmean_eval':
+                if v_ori.dtype == object:
+                    v_ori[ v_ori=='None' ] = np.nan
+                    v_ori = v_ori.astype( np.float64 )
+                indexs = np.logical_not( np.isnan( v_ori ))
+                v= v_ori[ indexs ]
+                global_steps = global_steps_ori[ indexs ]
+            else:
+                v=v_ori
+                global_steps = global_steps_ori
+            results_all.append(  (key_y, global_steps, v ) )
+
+        return results_all
+
+    return load_csv_entity
+
+
+if __name__ == '__main__':
+    load_csv = get_load_csv_fn( ['eprewmean_eval'] )
+    load_csv(  '/media/d/e/et/baselines/log/cliptype=kl2clip,clipargs={klrange=null,adjusttype=base_clip_upper,cliprange=0.2,kl2clip_opttype=tabular},tidy.eval/env=Hopper-v2,seed=3,lam=0.95,policy_type=MlpPolicyExt,hidden_sizes=64,num_layers=2,num_sharing_layers=0,ac_fn=tanh,lam_decay=False' )
+
 
 
 def tes_groupresult():
