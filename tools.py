@@ -14,17 +14,23 @@ import time
 class Timer():
     def __init__(self):
         self.reset()
+        self.time_history = []
 
     def reset(self):
         self._time = time.time()
 
-    def count(self, msg='', p=True, reset=True):
-        inverval = time.time() - self._time
-        if p:
-            print(f'msg: {inverval} s')
+    def time(self, msg='', verbose=True, reset=True):
+        interval = time.time() - self._time
+        if verbose:
+            print(f'msg: {interval} s')
         if reset:
             self.reset()
-        return inverval
+        self.time_history.append( interval )
+        return interval
+
+    @property
+    def history_mean(self):
+        return np.mean( self.time_history )
 
 
 
@@ -377,7 +383,7 @@ def load_vars(filename, catchError=False):
             return None
         raise e
 #
-def save_vars(filename, *vs, verbose=0, disp=False, append=False):
+def save_vars(filename, *vs, verbose=0,  append=False):
     if verbose:
         print( f'Save vars to \n{filename}' )
     mode = 'ab' if append else 'wb'

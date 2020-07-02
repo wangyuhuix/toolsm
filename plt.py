@@ -37,6 +37,8 @@ def get_size( fig=None ):
     return figManager.winfo_width(), figManager.winfo_height()
 
 def get_screensize(fig=None):
+    if fig is None:
+        fig = plt.gcf()
     figManager = fig.canvas.manager.window
     return figManager.winfo_screenwidth(), figManager.winfo_screenheight()
 

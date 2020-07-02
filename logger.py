@@ -77,7 +77,10 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
         parser.add_argument('--name_group', default='', type=str)
         parser.add_argument('--name_run', default="", type=str)
 
-    Please Rememer to add when the program exit!!!!
+    Please rememer to add 'finish' when the program exit!!!!
+
+    :return
+    ARGS: all dict in args will be Dotmap
 
     The final log_path is:
         root_dir/name_project/dir_type/[key_group=value,]name_group/[key_normalargs=value]name_run
@@ -205,7 +208,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
             elif mode == 'overwrite':#直接覆盖
                 flag_move_dir = 'y'
             elif mode == 'finish_then_exit_else_overwrite':
-                if np.any( [ osp.exists( get_finish_file(d) )   for d in dirs_full.values() ]):
+                if np.any( [ exist_finish_file(d)   for d in dirs_full.values() ]):
                     flag_move_dir = 'n'
                     print(f'Exited! Exist file\n{get_finish_file(d)}\nYou can try to rename value of "name_group" or that of "name_run"')
                     exit()
@@ -240,9 +243,11 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
     tools.save_json( os.path.join(args.log_dir, 'args.json'), args_json )
     return args
 
+def exist_finish_file(path):
+    return os.path.exists( get_finish_file(path) ) or os.path.exists( os.path.join(f'{path}', '.finish_indicator') )
 
 def get_finish_file(path):
-    return os.path.join(f'{path}', '.finish_indicator')
+    return os.path.join(f'{path}', 'finish_indicator')
 
 def finish_dir(path):
     with open(get_finish_file(path), mode='w'):
@@ -741,7 +746,7 @@ def get_group_result(path_root, depth, keys_args_main, keys_args_sub, fun_load, 
         #     continue
 
         path_split = p.split('/')
-        if not os.path.exists( get_finish_file(p) ):
+        if not exist_finish_file(p):
             tools.warn_(f'not finish:\n{p}')
             continue
 

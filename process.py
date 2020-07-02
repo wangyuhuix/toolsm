@@ -46,11 +46,17 @@ def args_NameAndValues2args_list(args_NameAndValues:dict, args_default:dict={}, 
         )
     '''
     assert isinstance(args_list, list)
+    args_list = args_list.copy() #!important
     setting_specified_all = {}
     for argname, argvalue in args_NameAndValues.items():
         if isinstance( argvalue, dict ):#This means that it is speicified settings
             setting_specified_all[argname] = argvalue
-            args_NameAndValues[argname] = list(argvalue.keys())
+            args_NameAndValues[argname] = argvalue = list(argvalue.keys())
+
+        # TODO: debug, may be wrong
+        if not isinstance(argvalue, list):
+            args_NameAndValues[argname] = [argvalue]
+
 
     # args_values = tools.multiarr2meshgrid(args_NameAndValues.values())
     if len( args_NameAndValues )>0:#We need to judge it. Otherwise when args_NameAndValues={}, itertools.product could output {()}
@@ -151,6 +157,9 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
     print(args_default_str)
     logger.log_str( f'n={n}' )
     print( f'n={n}' )
+
+    args_default = args_default.copy()
+    args_list = args_list.copy()
     args_list = args_NameAndValues2args_list( args_NameAndValues, args_default, args_list  )
     args_call_all = []
     args_call_base = ['python', '-m', script]

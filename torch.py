@@ -3,6 +3,16 @@ import torch
 from torch import tensor
 import math
 
+
+
+
+def toTensor(a, dtype=torch.float32):
+    return torch.tensor(a, device=torch.device('cuda'), dtype=dtype, requires_grad=False)
+
+def toNumpy(a):
+    return a.cpu().numpy()
+
+
 class Pd(object):
     def mode(self):
         raise NotImplementedError
