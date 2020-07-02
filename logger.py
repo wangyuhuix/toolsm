@@ -71,7 +71,7 @@ def get_logger_dir(dir_log_debug=None, dir_log_release=None, dir_indicator=None)
 
 
 # TODO: when the dir is running by other thread, we should also exited.
-def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_dir=''):
+def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, root_dir=''):
     '''
     Please add the following keys to the argument:
         parser.add_argument('--log_dir_mode', default='finish_then_exit_else_overwrite', type=str)#finish_then_exit_else_overwrite
@@ -93,6 +93,12 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
 
     New version: parser.add_argument('--log_dir_mode', default='', type=str) #append, overwrite, finish_then_exit_else_overwrite, exist_then_exit
     '''
+    if key_exclude_all is None:
+        key_exclude_all = []
+
+    if dir_type_all is None:
+        dir_type_all = ['log']
+
     SPLIT = ','
     from dotmap import DotMap
     if isinstance(args, argparse.Namespace):
@@ -116,32 +122,29 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
     if not args.name_group:
         args.name_group = 'tmpGroup'
         print( f'args.name_group is empty. It is set to be {args.name_group}' )
+    key_exclude_all.extend(args.keys_group)
 
-    # -------------- get root directory -----------
-    # if tools.ispc('xiaoming'):
-    #     root_dir = '/media/d/e/et'
-    # else:
-    #     root_dir = f"{os.environ['HOME']}/xm/et"
-    #
-    # root_dir = f'{root_dir}/{name_project}'
-    # root_dir =
 
     # ----------- get sub directory -----------
-    keys_exclude.extend(['log_dir_mode','name_group','keys_group', 'name_run', 'is_multiprocess'])
-    keys_exclude.extend(args.keys_group)
-    if key_first is not None:
-        keys_exclude.append(key_first)
-    keys_exclude.extend( args.keys_group )
+    key_exclude_all.extend(['log_dir_mode', 'name_group', 'keys_group', 'name_run', 'is_multiprocess'])
+
+
     # --- add first key
-    if key_first is None:
-        key_first = list(set(args.keys()).difference( set(keys_exclude) )) [0]
-    keys_exclude.append(key_first)
-    key = key_first
-    name_task = f'{key}={arg2str(args[key])}'
+    if key_first is not None and key_first not in key_exclude_all:
+        key_exclude_all.append(key_first)
+        key = key_first
+        name_task = f'{SPLIT}{key}={arg2str(args[key])}'
+
+        key_exclude_all.append(key_first)
+
+    else:
+        # key_first = list(set(args.keys()).difference(set(keys_exclude)))[0]
+        name_task = f''
+
 
     # --- add keys common
     for key in args.keys():
-        if key not in keys_exclude:
+        if key not in key_exclude_all:
             name_task += f'{SPLIT}{key}={arg2str(args[key])}'
 
             # print( f'{key},{type(args_dict[key])}' )
@@ -151,6 +154,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
     if args.has_key(key) and not args[key] == '':
         name_task += f'{SPLIT}{key}={arg2str(args[key])}'
 
+    name_task = name_task[1:]
 
     # ----------------- prepare directory ----------
     def get_dir_full( d_type, suffix='', print_root=True, print_dirtype=True ):
@@ -165,7 +169,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
 
 
     dirs_full = dict()
-    for d_type in dirs_type:
+    for d_type in dir_type_all:
         assert d_type
         dirs_full[d_type] = get_dir_full(d_type)
         print( tools.colorize( f'{d_type}_dir:\n{dirs_full[d_type]}' , 'green') )
@@ -196,7 +200,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
                 else:
                     suffix = f'{SPLIT}{i}'
                 dirs_full_discard = {}
-                for d_type in dirs_type:
+                for d_type in dir_type_all:
 
                     dirs_full_discard[d_type] = get_dir_full( f'{d_type}_del', suffix )
                 if not np.any( [osp.exists( d ) for d in dirs_full_discard.values() ]):
@@ -225,9 +229,9 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
 
             if flag_move_dir == 'y' \
                 and \
-                np.all(tools.check_safe_path( dirs_full[d_type], confirm=False) for d_type in dirs_type):
+                np.all(tools.check_safe_path( dirs_full[d_type], confirm=False) for d_type in dir_type_all):
                 import shutil
-                for d_type in dirs_type:
+                for d_type in dir_type_all:
                     if osp.exists(dirs_full[d_type]):
                         # print( tools.colorize( f'Move:\n{dirs_full[d_type]}\n To\n {dirs_full_discard[d_type]}','red') )
                         shutil.move(dirs_full[d_type], dirs_full_discard[d_type])#TODO: test if not exist?
@@ -237,7 +241,7 @@ def prepare_dirs(args, key_first=None, keys_exclude=[], dirs_type=['log'], root_
             pass
 
 
-    for d_type in dirs_type:
+    for d_type in dir_type_all:
         tools.makedirs( dirs_full[d_type] )
 
     args_json = args.toDict()
@@ -606,16 +610,18 @@ def _strlist2list(keys):
 
 
 # NOTE: This function has been changed in 2020/07/02, please modfiy your code
-def group_result(task_all, task_type, fn_get_fn_loaddata, path_root, dirname_2_setting=None):
+# TODO: not group the result that has been handled
+def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, dirname_2_setting=None):
     '''
     You should organize your result in the following way:
         <algorithm, e.g., name and setting>/<run, e.g., environments, seeds>/
-    Within the running result directory, you should include:
+    In the running result directory, you should include:
         - <INFO file> which record the running arguments
         - <RESULT file> which record the runing results
 
-    :param task_all: The group tasks
-    :type task_all:
+    :param task_all: The tasks
+    :type task_all: The list of task
+
     :param task_type:
     :type task_type:
     :param fn_loaddata:
@@ -629,13 +635,22 @@ def group_result(task_all, task_type, fn_get_fn_loaddata, path_root, dirname_2_s
     '''
 
     # NOT GENERAL! Personal habit!
+    # task_all: list of tasks, including the following keys
+    '''
+        key_global_step_IN_result
+        key_env_IN_info
+        dir
+        key_y_all: default=dir
+    '''
+
     task_default = dict(
-        key_global_step_IN_result='total_timesteps',
+        key_global_step_IN_result='global_step',
         key_env_IN_info='env'
     )
     for task in task_all:
-        if 'keys_y' not in task.keys():
-            task['keys_y'] = task.dir
+        if 'key_y_all' not in task.keys():
+            task['key_y_all'] = task.dir
+
         for k in task_default:
             if k not in task:
                 task[k] = task_default[k]
@@ -647,18 +662,18 @@ def group_result(task_all, task_type, fn_get_fn_loaddata, path_root, dirname_2_s
         path = f'{path_root}/{dir_}'
         path_group = f'{path},group'
         tools.mkdir(path_group)
-        keys_y = task['keys_y']
-        key_global_step = task['key_global_step']
+        key_y_all = task['key_y_all']
+        key_global_step = task['key_global_step_IN_result']
 
 
-        key_arg_env = task['key_arg_env']
+        key_env_IN_info = task['key_env_IN_info']
         if task_type == 'Generate_Result_For_Plot':
             result_grouped = get_result_grouped(
                 path_root = path,
                 depth=2,
-                keys_info_main=key_arg_env,
+                keys_info_main=key_env_IN_info,
                 keys_info_sub=-2,
-                fn_loaddata=fn_get_fn_loaddata(keys_y, key_global_step=key_global_step)
+                fn_loaddata=fn_get_fn_loadresult(key_y_all, key_global_step=key_global_step)
             )
             # modify env name
             envs = list( result_grouped.keys())
@@ -692,13 +707,13 @@ def group_result(task_all, task_type, fn_get_fn_loaddata, path_root, dirname_2_s
                 path_root = path,
                 depth=2,
                 keys_info_main=-2,
-                keys_info_sub=key_arg_env,
-                fn_loaddata=fn_get_fn_loaddata(keys_y, key_global_step=key_global_step)
+                keys_info_sub=key_env_IN_info,
+                fn_loaddata=fn_get_fn_loadresult(key_y_all, key_global_step=key_global_step)
             )
             write_result_grouped_tensorflow(
                 path_root=path,
                 result_grouped=result_grouped,
-                names_y=keys_y,
+                names_y=key_y_all,
                 overwrite=True
             )
         else:
@@ -733,7 +748,7 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
     if path_root[-1] == '/':
         path_root = path_root[:-1]
 
-    # Not General, just for my personal habit...
+    # NOT GENERAL, just for my personal habit...
     filter_ = lambda x: all([(s not in x) for s in ['notusing', ',tmp']])
     path_all = tools.get_dirs(path_root, depth=depth, only_last_depth=True, filter_=filter_)
 
@@ -760,14 +775,14 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
 
         path_split = path.split('/')
 
-        # Not General, just for my personal habit...
+        # NOT GENERAL, just for my personal habit...
         if not exist_finish_file(path):
             tools.warn_(f'not finish:\n{path}')
             continue
 
         info = tools.load_json(f'{path}/{file_info}')
 
-        # Not general, just for my personal habit....
+        # NOT GENERAL, just for my personal habit....
         if 'env' in info.keys():
             info['env'] = info['env'].split('-v')[0]
 
@@ -783,7 +798,7 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
             # Use directory name as keys_info_main
             name_method = path_split[keys_info_main]
 
-            # Not general, just for my personal habit....
+            # NOT GENERAL, just for my personal habit....
             name_method = name_method.replace('Link to ','')
             name_method = name_method.replace(',tidy.eval', '')
 
@@ -1039,9 +1054,9 @@ def write_result_grouped_tensorflow(*, path_root, result_grouped, names_y,  over
     tools.print_(f'Written grouped result to:\n{path_root_new}', color='green')
 
 
-def get_load_debugs_fn(keys_y, **kwargs):
-    if not isinstance(keys_y, list):
-        keys_y = [keys_y]
+def get_load_debugs_fn(key_y_all, **kwargs):
+    if not isinstance(key_y_all, list):
+        key_y_all = [key_y_all]
     def load_debugs_entity( p, args ):
 
         results_all = []
@@ -1057,7 +1072,7 @@ def get_load_debugs_fn(keys_y, **kwargs):
         if not osp.exists( file_debugs ):
             tools.warn_( f'not exist:\n{file_debugs}' )
             return None
-        for key_y in keys_y:
+        for key_y in key_y_all:
             debugs = tools.load_vars( file_debugs )
             # global_steps = []
             values = []
@@ -1114,15 +1129,15 @@ def get_load_debugs_fn(keys_y, **kwargs):
 
     return load_debugs_entity
 
-def get_load_csv_fn(keys_y, key_global_step='global_step', filename='process.csv', args_readfile=None):
+def get_load_csv_fn(key_y_all, key_global_step='global_step', filename='process.csv', args_readfile=None):
     if args_readfile is None:
         args_readfile = dict(sep='\t')
 
-    if not isinstance(keys_y, list):
-        keys_y = [keys_y]
+    if not isinstance(key_y_all, list):
+        key_y_all = [key_y_all]
 
     def load_csv_entity(p, *args, **kwargs):
-        # Not General. For personal habit
+        # NOT GENERAL. For personal habit
         if 'alg=trpo' in p:
             key_global_step_t = 'global_step'
         else:
@@ -1136,9 +1151,9 @@ def get_load_csv_fn(keys_y, key_global_step='global_step', filename='process.csv
         results_all = []
         global_steps_ori = process.loc[:, key_global_step_t]
 
-        for key_y in keys_y:
+        for key_y in key_y_all:
             v_ori = process.loc[:, key_y]
-            # Not General. For personal habit
+            # NOT GENERAL. For personal habit
             if key_y == 'eprewmean_eval':
                 if v_ori.dtype == object:
                     v_ori[ v_ori=='None' ] = np.nan
