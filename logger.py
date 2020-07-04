@@ -611,7 +611,7 @@ def _strlist2list(keys):
 
 # NOTE: This function has been changed in 2020/07/02, please modfiy your code
 # TODO: not group the result that has been handled
-def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, dirname_2_setting=None):
+def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, algdir_2_algsetting=None):
     '''
     You should organize your result in the following way:
         <algorithm, e.g., name and setting>/<run, e.g., environments, seeds>/
@@ -619,28 +619,27 @@ def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, dirname_2
         - <INFO file> which record the running arguments
         - <RESULT file> which record the runing results
 
-    :param task_all: The tasks
-    :type task_all: The list of task
-
+    :param task_all: list of tasks, including the following keys
+        dir:
+        key_y_all: default=dir
+        key_global_step_IN_result
+        key_env_IN_info
+    :type task_all:
     :param task_type:
     :type task_type:
     :param fn_loaddata:
     :type fn_loaddata:
     :param path_root:
     :type path_root:
-    :param dirname_2_setting:
-    :type dirname_2_setting:
+    :param algdir_2_algsetting:
+        key: algdir
+        algsetting: e.g., DotMap( dict( name='', pltargs=dict(color='hotpink', linestyle='--', zorder=-1)) ),
+    :type algdir_2_algsetting:
     :return:
     :rtype:
     '''
-
     # NOT GENERAL! Personal habit!
-    # task_all: list of tasks, including the following keys
     '''
-        key_global_step_IN_result
-        key_env_IN_info
-        dir
-        key_y_all: default=dir
     '''
 
     task_default = dict(
@@ -681,21 +680,22 @@ def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, dirname_2
                 env_new = env.replace('env=','')
                 result_grouped[env_new] = result_grouped.pop(env)
 
-            if dirname_2_setting is not None:
+            if algdir_2_algsetting is not None:
                 # modify method name
                 for env in result_grouped:
                     dirs_all = list(result_grouped[env].keys())
                     for dir_ in dirs_all:
-                        result_grouped[env][ dirname_2_setting[dir_]['name']] = result_grouped[env].pop(dir_)
+                        result_grouped[env][ algdir_2_algsetting[dir_]['name']] = result_grouped[env].pop(dir_)
             else:
                 # print the code of seeting dirname_2_setting
+                algdir_2_algsetting = dict()
                 for env in result_grouped:
                     for dir_ in result_grouped[env]:
-                        dirname_2_setting[dir_] = "dict()"
+                        algdir_2_algsetting[dir_] = "DotMap(dict(name='',pltargs=dict()))"
 
-                methods_jsonstr = tools.json2str(dirname_2_setting, remove_quotes_key=False, remove_brace=False, remove_quotes_value=True, indent='\t')
+                methods_jsonstr = tools.json2str(algdir_2_algsetting, remove_quotes_key=False, remove_brace=False, remove_quotes_value=True, indent='\t')
                 methods_jsonstr = methods_jsonstr.replace('"',"'")
-                print( methods_jsonstr )
+                print( '\nalgdir_2_algsetting = ', methods_jsonstr )
 
             tools.save_vars( f'{path_group}/results_group.pkl', result_grouped, verbose=1 )
 
@@ -770,7 +770,7 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
 
     from tqdm import tqdm
     process = tqdm( total=len(path_all) )
-    keys_args_main_ori = keys_info_main
+    keys_info_main_ori = keys_info_main
     for path in path_all:
 
         path_split = path.split('/')
@@ -788,7 +788,7 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
 
 
         if isinstance(keys_info_main, list):
-            keys_info_main = keys_args_main_ori.copy()
+            keys_info_main = keys_info_main_ori.copy()
             # TODO: may have bug
             for i_,k_ in list(enumerate(keys_info_main)):
                 if k_ not in info.keys():
@@ -850,20 +850,20 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
         process.update(1)
     return results_group
 
-def plot_result_grouped(task_setting_all, alg_setting_all, path_root_data, path_root_save, fontsize, IS_DEBUG=False):
+def plot_result_grouped(task_all, algdir_2_algsetting, path_root_data, path_root_save, fontsize=14, IS_DEBUG=False):
     import toolsm.plt
     from scipy.signal import savgol_filter
     import matplotlib.pyplot as plt
     import seaborn as sns
     import pickle
 
-    for alg in alg_setting_all:
-        if not alg_setting_all[alg].has_key('window_length'):
-            alg_setting_all[alg].window_length = 9
+    for dir_ in algdir_2_algsetting:
+        if not algdir_2_algsetting[dir_].has_key('window_length'):
+            algdir_2_algsetting[dir_].window_length = 9
 
     xticks_setting_default = DotMap(div=1e6, unit=r'$\times 10^6$', n=5, round=1)
 
-    for task_setting in task_setting_all:
+    for task_setting in task_all:
         if not task_setting.has_key('dir'):
             task_setting.dir = task_setting.name
         if not task_setting.has_key('linewidth'):
@@ -883,7 +883,7 @@ def plot_result_grouped(task_setting_all, alg_setting_all, path_root_data, path_
             if not env_setting.has_key('legend'):
                 env_setting.legend = False
 
-    for task_setting in task_setting_all:
+    for task_setting in task_all:
         task_setting.path = f"{path_root_data}/{task_setting.dir},group/results_group.pkl"
         f = open(task_setting.path, 'rb')
         results_group = pickle.load(f)
@@ -901,22 +901,22 @@ def plot_result_grouped(task_setting_all, alg_setting_all, path_root_data, path_
             ax.spines['right'].set_visible(False)
 
             # 保证results_group里的方法再algs里都有
-            for alg in results_group[env_name]:
+            for algdir in results_group[env_name]:
                 # assert alg in algs,
-                if alg not in alg_setting_all:
-                    tools.warn_(f"'{alg}' not in algs")
+                if algdir not in algdir_2_algsetting:
+                    tools.warn_(f"'{algdir_2_algsetting[algdir]['name']}' not in algs")
 
-            for alg in alg_setting_all:
-                if alg not in results_group[env_name]:
+            for algdir in algdir_2_algsetting:
+                if algdir not in results_group[env_name]:
                     continue
-                alg_setting = alg_setting_all[alg].copy()
-                if 'algs' in env_setting.keys() and alg in env_setting['algs'].keys():
-                    alg_setting_specify = env_setting['algs'][alg]
+                alg_setting = algdir_2_algsetting[algdir].copy()
+                if 'algs' in env_setting.keys() and algdir in env_setting['algs'].keys():
+                    alg_setting_specify = env_setting['algs'][algdir]
                     print(alg_setting_specify)
                     alg_setting.update(alg_setting_specify)
                 # print(env_name,alg)
-                x_axis = results_group[env_name][alg][task_setting.xaxis]
-                y_axis = results_group[env_name][alg][task_setting.yaxis]
+                x_axis = results_group[env_name][algdir][task_setting.xaxis]
+                y_axis = results_group[env_name][algdir][task_setting.yaxis]
                 y_axis = savgol_filter(y_axis, window_length=alg_setting.window_length, polyorder=1)
                 # print(alg_setting.pltargs.toDict())
                 # print(np.max(x_axis))
@@ -929,7 +929,7 @@ def plot_result_grouped(task_setting_all, alg_setting_all, path_root_data, path_
                            ci=env_setting.ci,
                            **alg_setting.pltargs.toDict()
                            )
-                legends.append(alg)  # legend of this plot
+                legends.append(alg_setting['name'])  # legend of this plot
 
             # set grid
             ax.grid(linestyle='--', linewidth=0.3, color='black', alpha=0.15)
@@ -978,7 +978,7 @@ def plot_result_grouped(task_setting_all, alg_setting_all, path_root_data, path_
                 # print(env_setting.legend)
                 h = plt.gca().get_lines()
                 leg = plt.legend(handles=h, labels=legends, handlelength=4.0,
-                                 ncol=1, **env_setting.legend.toDict())
+                                 ncol=1, **env_setting.legend)
 
 
             print(f'{path_save}/{env_name}')
