@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 
 
+COLORS_EASY_DISTINGUISH = set('red green yellow blue orange purple cyan magenta lime pink teal maroon olive navy grey'.split(' '))
 
 def set_position(fig=None, x=None, y=None):
     if fig is None:

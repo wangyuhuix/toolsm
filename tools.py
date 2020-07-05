@@ -628,6 +628,43 @@ def load_config(filename):
 
 
 
+
+
+
+
+
+
+
+# def update_dict( dictmain, dictnew ):
+#     for key in dictnew:
+#         if
+
+from dotmap import DotMap
+def update_dict(dictmain, dictnew):
+    for key in dictnew:
+        if ( isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) and key in dictmain.keys():
+            update_dict( dictmain, dictnew[key] )
+        else:
+            dictmain[key] = copy( dictnew[key])
+    return dictmain
+
+def update_dict_specifed(dictmain, dictnew):
+    for key in dictnew:
+        if key.startswith('__'):
+            # This means that the value are customized for the specific values
+            key_interest  = key[2:] #e.g., __cliptype
+            value_interest  = dictmain[key_interest] #Search value from dictmain. e.g., kl_klrollback_constant_withratio
+            if value_interest in dictnew[ key ].keys():
+                dictmain = update_dict_specifed( dictmain, dictnew[ key ][value_interest])
+        else:
+            if ( isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) and key in dictmain.keys():
+                update_dict_specifed( dictmain, dictnew[key] )
+            else:
+                dictmain[key] = copy( dictnew[key])
+    return dictmain
+
+
+
 '''
 def JSONFile(filepath, *keys):
     value_update = None
