@@ -640,16 +640,18 @@ def load_config(filename):
 #         if
 
 from dotmap import DotMap
+from copy import deepcopy, copy
 def update_dict(dictmain, dictnew):
     for key in dictnew:
         if ( isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) and key in dictmain.keys():
-            update_dict( dictmain, dictnew[key] )
+            dictmain[key] = update_dict( dictmain[key], dictnew[key] )
         else:
-            dictmain[key] = copy( dictnew[key])
+            dictmain[key] = deepcopy( dictnew[key])
     return dictmain
 
 def update_dict_specifed(dictmain, dictnew):
-    for key in dictnew:
+    keys = list(dictnew.keys())
+    for key in keys:
         if key.startswith('__'):
             # This means that the value are customized for the specific values
             key_interest  = key[2:] #e.g., __cliptype
@@ -657,8 +659,10 @@ def update_dict_specifed(dictmain, dictnew):
             if value_interest in dictnew[ key ].keys():
                 dictmain = update_dict_specifed( dictmain, dictnew[ key ][value_interest])
         else:
-            if ( isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) and key in dictmain.keys():
-                update_dict_specifed( dictmain, dictnew[key] )
+            if ( isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) \
+                and key in dictmain.keys() \
+                and ( isinstance(dictmain[key], dict) or isinstance(dictmain[key], DotMap) ):
+                dictmain[key] = update_dict_specifed( dictmain[key], dictnew[key] )
             else:
                 dictmain[key] = copy( dictnew[key])
     return dictmain

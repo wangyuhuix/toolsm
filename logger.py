@@ -692,7 +692,7 @@ def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, algdir_2_
                 algdir_2_algsetting = dict()
                 for env in result_grouped:
                     for dir_ in result_grouped[env]:
-                        algdir_2_algsetting[dir_] = "DotMap(dict(name='',pltargs=dict()))"
+                        algdir_2_algsetting[dir_] = "DotMap(name='',pltargs=DotMap())"
 
                 methods_jsonstr = tools.json2str(algdir_2_algsetting, remove_quotes_key=False, remove_brace=False, remove_quotes_value=True, indent='\t')
                 methods_jsonstr = methods_jsonstr.replace('"',"'")
@@ -851,21 +851,34 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
         process.update(1)
     return results_group
 
-def plot_result_grouped(task_all, algdir_2_setting, path_root_data, path_root_save, setting_global=None, fontsize=14, IS_DEBUG=False):
+def plot_result_grouped(task_all, algdir_2_setting, path_root_data, path_root_save, setting_global=None, IS_DEBUG=False):
     '''
-    Priority: algorithm setting > task setting> global setting
+    We define the settings from the global, task and algorithm level.
+    Setting Priority: algorithm(algdir_2_algsetting) > task > global
     Also, the sub-specified-setting has highest priority
 
-    Task:
-        dir:
-        key_y_all:
-        ylabel_all:
+    algdir_2_setting: setting for algorithm
+        <algdir>: <setting>
 
-    Each plot has
-        env:
-        alg:
-        key_y:
-        ylabel:
+    task:
+        dir:
+        key_y: The key to plot y
+        __env:
+            <env>:
+                <setting>
+        __alg:
+            <alg>:
+                <setting>
+
+    setting_global: default setting for each plot
+
+
+    env_2_algdir_2_result: result
+        <env>:
+            <algdir>:
+                <key_y>_all
+                <key_y>_global_steps: record the global steps
+                <key_y>_global_steps_path: record the global steps from which the global steps are extracted
 
 
     :param task_all: list of tasks, which include the following keys
@@ -908,57 +921,36 @@ def plot_result_grouped(task_all, algdir_2_setting, path_root_data, path_root_sa
 
     for dir_, algsetting in algdir_2_setting.items():
         if 'color' not in algsetting.pltargs:
-            algsetting.pltargs['color'] = COLORS_EASY_DISTINGUISH.pop()
+            algsetting.pltargs['color'] = COLORS_EASY_DISTINGUISH.pop(0)
         else:
             if algsetting.pltargs['color'] in COLORS_EASY_DISTINGUISH:
                 COLORS_EASY_DISTINGUISH.remove( algsetting.pltargs['color'] )
 
 
-    setting_global = DotMap(
+    setting_global_default = DotMap(
+        xlabel = 'Timesteps',
         linewidth=1.5,
-        xticks = DotMap(div=1e6, unit=r'$\times 10^6$', n=5, round=1),
+        # xticks = DotMap(),#e.g.,div=1e6, unit=r'$\times 10^6$', n=5, round=1
         ci = 60,
         legend=False,
         smooth_window_length = 9,
+        fontsize=10,
+        file_ext = 'pdf'
     )
+    if setting_global is None:
+        setting_global = setting_global_default
+    else:
+        setting_global = tools.update_dict( setting_global_default, setting_global )
+
     from copy import deepcopy
     # Draw result for each task, e.g., the reward or the likelihood ratio.
     for task in task_all:
-        '''
-            We define the settings from the global, task and algorithm level.
-            Priority: algorithm(algdir_2_algsetting) > task > global
-            
-            algdir_2_setting: setting for algorithm
-                <algdir>: <setting>
-                
-            task: 
-                dir:
-                key_y: The key to plot y
-                __env:
-                    <env>:
-                        <setting>
-                __alg:
-                    <alg>:
-                        <setting>
-            
-            setting_global: default setting for each plot
-                
-                
-            env_2_algdir_2_result: result
-                <env>:
-                    <algdir>:
-                        <key_y>_all
-                        <key_y>_global_steps: record the global steps 
-                        <key_y>_global_steps_path: record the global steps from which the global steps are extracted                        
-        '''
-
         # ------- BEGIN Update setting ---------
         setting_global_new = deepcopy(setting_global)
         setting_task = deepcopy( task )
         for key in ['dir', 'key_y']:
             setting_task.pop(key)
-        tools.update_dict( setting_global_new, setting_task )
-        setting_task = setting_global_new
+        setting_task = tools.update_dict( setting_global_new, setting_task )
         # ------------- END --------------------
 
 
@@ -988,16 +980,15 @@ def plot_result_grouped(task_all, algdir_2_setting, path_root_data, path_root_sa
                     tools.warn_(f"'{algdir_2_setting[algdir]['name']}' not in algs")
 
             setting_task.env = env
-            for algdir in algdir_2_setting.items():
+            for algdir in algdir_2_setting.keys():
                 if algdir not in env_2_algdir_2_result[env]:
                     continue
 
                 # ------- BEGIN Update setting ---------
                 setting_task_tmp = deepcopy(setting_task)
                 setting_alg = algdir_2_setting[algdir]
-                tools.update_dict(setting_task_tmp, setting_alg)
-                setting = setting_alg
-                tools.update_dict_specifed( setting, setting )
+                setting = tools.update_dict(setting_task_tmp, setting_alg)
+                setting = tools.update_dict_specifed( setting, setting )
                 # ------------- END ---------------------
 
 
@@ -1007,7 +998,7 @@ def plot_result_grouped(task_all, algdir_2_setting, path_root_data, path_root_sa
                 y = savgol_filter(y, window_length=setting.smooth_window_length, polyorder=1)
                 sns.tsplot(y,
                            x,
-                           linewidth=task.linewidth,
+                           linewidth=setting.linewidth,
                            legend=True,
                            ci=setting.ci,
                            **setting.pltargs.toDict()
@@ -1016,7 +1007,6 @@ def plot_result_grouped(task_all, algdir_2_setting, path_root_data, path_root_sa
 
             # set grid
             ax.grid(linestyle='--', linewidth=0.3, color='black', alpha=0.15)
-
             if setting.has_key('ylim_start'):
                 # ax.set_ylim(bottom=0, top=120)
                 plt.ylim(bottom=setting.ylim_start)
@@ -1024,49 +1014,49 @@ def plot_result_grouped(task_all, algdir_2_setting, path_root_data, path_root_sa
                 # print(env_setting.ylim_end)
                 ax.set_ylim(top=setting.ylim_end)
 
-            # set labels and titles
-            plt.ylabel(task.ylabel, fontsize=fontsize, labelpad=4)
-            xlabel = "Timesteps"
-            xticks = setting.xticks
-            if xticks.has_key('unit'):
-                xlabel = f'{xlabel}({xticks.unit})'
-            plt.xlabel(xlabel, fontsize=fontsize, labelpad=4)
+            # --- set ticks and labels
+            xlabel = setting.xlabel
+            if setting.has_key('xticks'):
+                xticks = setting.xticks
+                if xticks.has_key('unit'):
+                    xlabel = f'{xlabel}({xticks.unit})'
 
+                locs_xticks, labels_xticks = plt.xticks()
+                loc_min, loc_max = locs_xticks[0], locs_xticks[-1]
+                locs_xticks = np.linspace(loc_min, loc_max, xticks.n + 1)
+                labels_xticks = [''] * locs_xticks.size
+                for ind_, loc in enumerate(locs_xticks):
+                    labels_xticks[ind_] = loc / xticks.div
+                    if xticks.has_key('round'):
+                        labels_xticks[ind_] = round(labels_xticks[ind_], xticks.round)
+                        if xticks.round == 0:
+                            labels_xticks[ind_] = int(labels_xticks[ind_])
+                plt.xticks(locs_xticks)
+                ax.set_xticklabels(labels_xticks)
+
+            plt.xlabel(xlabel, fontsize=setting.fontsize, labelpad=4)
+            plt.ylabel(task.ylabel, fontsize=setting.fontsize, labelpad=4)
+
+            # ----- Set Title
             # NOT GENERAL. personal habit
             if '-v' in env:
                 env = env.split('-v')[0]
             env = env.replace('NoFrameskip', '')
+            plt.title(env, fontsize=setting.fontsize + 3)
 
-            plt.title(env, fontsize=fontsize + 3)
-
-            path_save = f"{path_root_save}/{task.dir}"
-            tools.mkdirs(path_save)
-            ylabel_ = task.ylabel.replace(' ', '_')
-
-            locs, labels = plt.xticks()
-            loc_min, loc_max = locs[0], locs[-1]
-
-            locs = np.linspace(loc_min, loc_max, xticks.n + 1)
-            labels = [''] * locs.size
-            for ind_, loc in enumerate(locs):
-                labels[ind_] = round(loc / xticks.div, xticks.round)
-                if xticks.round == 0:
-                    labels[ind_] = int(labels[ind_])
-            plt.xticks(locs)
-            ax.set_xticklabels(labels)
-
-
-
+            # ----- Set Legend
             if setting.legend:
                 h = plt.gca().get_lines()
                 leg = plt.legend(handles=h, labels=legend_all, handlelength=4.0,
                                  ncol=1, **setting.legend)
 
-
+            # ----- Save figure
+            path_save = f"{path_root_save}/{task.dir}"
+            tools.mkdirs(path_save)
             print(f'{path_save}/{env}')
-            # exit()
-            plt.savefig(f'{path_save}/{env}.pdf', bbox_inches="tight",
-                        pad_inches=0.03)  # pad_inches: 留白大小
+            plt.savefig(f'{path_save}/{env}.{setting.file_ext}', bbox_inches="tight",
+                        pad_inches=0.0 )
+
             if IS_DEBUG:
                 toolsm.plt.set_position()
                 plt.show()

@@ -6,15 +6,14 @@ path_root = '/media/d/e/et/DQN'
 task_all = [
     DotMap(
         dir='QLearning_MountainCar',
-        key_y_all=['return_'],
-        name='return_',
+        key_y='return_',
         ylabel='Reward',
-        env = {
+        __env = {
             'MountainCar': DotMap(legend=dict(loc='upper right', fontsize=10))
         }
     )
 ]
-
+# TODO: modify key_y_all
 
 # logger.group_result( task_all,
 #                     'Generate_Result_For_Plot',
@@ -26,10 +25,10 @@ task_all = [
 # TODO: document; auto color
 
 algdir_2_algsetting =  {
-	'alg=QLearning,alg_args={n_buffer=4000,n_batch=64,gamma=0.95,keep_Q_other_a=false},policy=Q_Policy_NN,policy_args={epsilon_start=0.1,epsilon_end=0.05,epsilon_decay=2000,Q_initial=null,n_update=2,n_update_target=200,loss=MSELoss}':DotMap(dict(name='Target',pltargs=dict())),
-	'alg=QLearning,alg_args={n_buffer=4000,n_batch=64,gamma=0.95,keep_Q_other_a=false},policy=Q_Policy_NN,policy_args={epsilon_start=0.1,epsilon_end=0.05,epsilon_decay=2000,Q_initial=null,n_update=2,n_update_target=null,loss=MSELoss}':DotMap(dict(name='Nothing',pltargs=dict())),
-	'alg=QLearning,alg_args={n_buffer=4000,n_batch=64,gamma=0.95,keep_Q_other_a=true},policy=Q_Policy_NN,policy_args={epsilon_start=0.1,epsilon_end=0.05,epsilon_decay=2000,Q_initial=null,n_update=2,n_update_target=null,loss=MSELoss}':DotMap(dict(name='KeepQOfOtherAction',pltargs=dict())),
-	'alg=QLearning,alg_args={n_buffer=4000,n_batch=64,gamma=0.95,keep_Q_other_a=true},policy=Q_Policy_NN,policy_args={epsilon_start=0.1,epsilon_end=0.05,epsilon_decay=2000,Q_initial=null,n_update=2,n_update_target=200,loss=MSELoss}':DotMap(dict(name='KeepQOfOtherAction+Target',pltargs=dict()))
+	'alg=QLearning,alg_args={n_buffer=4000,n_batch=64,gamma=0.95,keep_Q_other_a=false},policy=Q_Policy_NN,policy_args={epsilon_start=0.1,epsilon_end=0.05,epsilon_decay=2000,Q_initial=null,n_update=2,n_update_target=200,loss=MSELoss}':DotMap(name='Target',pltargs=DotMap()),
+	'alg=QLearning,alg_args={n_buffer=4000,n_batch=64,gamma=0.95,keep_Q_other_a=false},policy=Q_Policy_NN,policy_args={epsilon_start=0.1,epsilon_end=0.05,epsilon_decay=2000,Q_initial=null,n_update=2,n_update_target=null,loss=MSELoss}':DotMap(name='Nothing',pltargs=DotMap()),
+	'alg=QLearning,alg_args={n_buffer=4000,n_batch=64,gamma=0.95,keep_Q_other_a=true},policy=Q_Policy_NN,policy_args={epsilon_start=0.1,epsilon_end=0.05,epsilon_decay=2000,Q_initial=null,n_update=2,n_update_target=null,loss=MSELoss}':DotMap(name='KeepQOfOtherAction',pltargs=DotMap()),
+	'alg=QLearning,alg_args={n_buffer=4000,n_batch=64,gamma=0.95,keep_Q_other_a=true},policy=Q_Policy_NN,policy_args={epsilon_start=0.1,epsilon_end=0.05,epsilon_decay=2000,Q_initial=null,n_update=2,n_update_target=200,loss=MSELoss}':DotMap(name='KeepQOfOtherAction+Target',pltargs=DotMap())
 }
 
 logger.plot_result_grouped(task_all=task_all, algdir_2_setting=algdir_2_algsetting, path_root_data=path_root, path_root_save='/root/a', IS_DEBUG=True)
