@@ -640,13 +640,13 @@ def load_config(filename):
 #         if
 
 from dotmap import DotMap
-from copy import deepcopy, copy
+
 def update_dict(dictmain, dictnew):
     for key in dictnew:
         if ( isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) and key in dictmain.keys():
             dictmain[key] = update_dict( dictmain[key], dictnew[key] )
         else:
-            dictmain[key] = deepcopy( dictnew[key])
+            dictmain[key] = copy.deepcopy( dictnew[key])
     return dictmain
 
 def update_dict_specifed(dictmain, dictnew):
@@ -664,7 +664,7 @@ def update_dict_specifed(dictmain, dictnew):
                 and ( isinstance(dictmain[key], dict) or isinstance(dictmain[key], DotMap) ):
                 dictmain[key] = update_dict_specifed( dictmain[key], dictnew[key] )
             else:
-                dictmain[key] = copy( dictnew[key])
+                dictmain[key] = copy.copy( dictnew[key])
     return dictmain
 
 

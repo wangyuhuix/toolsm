@@ -89,8 +89,8 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
         root_dir/name_project/dir_type/[key_group=value,]name_group/[key_normalargs=value]name_run
     root_dir: root dir
     name_project: your project
-    dir_type: e.g. log, model
-    name_group: for different setting, e.g. hyperparameter or just for test
+    dir_type: E.G. log, model
+    name_group: for different setting, E.G. hyperparameter or just for test
 
     New version: parser.add_argument('--log_dir_mode', default='', type=str) #append, overwrite, finish_then_exit_else_overwrite, exist_then_exit
     '''
@@ -495,7 +495,7 @@ class Logger(object):
 
     def __init__(self, formats=[type.stdout], path='', file_basename=None, file_append=False):
         '''
-        :param formats: formats, e.g.,'stdout,log,csv,json'
+        :param formats: formats, E.G.,'stdout,log,csv,json'
         :type formats:str
         :param file_basename:
         :type file_basename:
@@ -610,12 +610,14 @@ def _strlist2list(keys):
     return keys
 
 
+
+
 # NOTE: This function has been changed in 2020/07/02, please modfiy your code
 # TODO: not group the result that has been handled
-def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, algdir_2_algsetting=None):
+def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, algdir_2_setting=None, setting_global=None):
     '''
     You should organize your result in the following way:
-        <algorithm, e.g., name and setting>/<run, e.g., environments, seeds>/
+        <algorithm, E.G., name and setting>/<run, E.G., environments, seeds>/
     In the running result directory, you should include:
         - <INFO file> which record the running arguments
         - <RESULT file> which record the runing results
@@ -632,41 +634,40 @@ def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, algdir_2_
     :type fn_loaddata:
     :param path_root:
     :type path_root:
-    :param algdir_2_algsetting:
+    :param algdir_2_setting:
         key: algdir
-        algsetting: e.g., DotMap( dict( name='', pltargs=dict(color='hotpink', linestyle='--', zorder=-1)) ),
-    :type algdir_2_algsetting:
+        algsetting: E.G., DotMap( dict( name='', pltargs=dict(color='hotpink', linestyle='--', zorder=-1)) ),
+    :type algdir_2_setting:
     :return:
     :rtype:
     '''
-    # NOT GENERAL! Personal habit!
-    '''
-    '''
 
-    task_default = dict(
-        key_global_step_IN_result='global_step',
-        key_env_IN_info='env'
-    )
-    for task in task_all:
-        if 'key_y_all' not in task.keys():
-            task['key_y_all'] = task.dir
-
-        for k in task_default:
-            if k not in task:
-                task[k] = task_default[k]
+    from copy import deepcopy, copy
+    if setting_global is None:
+        # NOT GENERAL! Personal habit!
+        setting_global = DotMap(
+            key_global_step_IN_result='global_step',
+            key_env_IN_info='env'
+        )
 
 
 
     for task in task_all:
-        dir_ = task.dir
-        path = f'{path_root}/{dir_}'
+        setting_global = copy(setting_global)
+        task = tools.update_dict(setting_global, task)
+
+        if isinstance( task.key_y_all, str ):
+            task.key_y_all = _strlist2list( task.key_y_all )
+
+        path = f'{path_root}/{task.dir}'
         path_group = f'{path},group'
         tools.mkdir(path_group)
-        key_y_all = task['key_y_all']
-        key_global_step = task['key_global_step_IN_result']
+        key_y_all = task.key_y_all
+        key_global_step = task.key_global_step_IN_result
 
 
         key_env_IN_info = task['key_env_IN_info']
+        # Note: we split the procedures of plot but merge the result for tensorflow, because we usually need to tune the plot.
         if task_type == 'Generate_Result_For_Plot':
             result_grouped = get_result_grouped(
                 path_root = path,
@@ -681,22 +682,21 @@ def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, algdir_2_
                 env_new = env.replace('env=','')
                 result_grouped[env_new] = result_grouped.pop(env)
 
-            if algdir_2_algsetting is not None:
-                # modify method name
-                for env in result_grouped:
-                    dirs_all = list(result_grouped[env].keys())
-                    for dir_ in dirs_all:
-                        result_grouped[env][ algdir_2_algsetting[dir_]['name']] = result_grouped[env].pop(dir_)
-            else:
-                # print the code of seeting dirname_2_setting
-                algdir_2_algsetting = dict()
-                for env in result_grouped:
-                    for dir_ in result_grouped[env]:
-                        algdir_2_algsetting[dir_] = "DotMap(name='',pltargs=DotMap())"
+            # if algdir_2_setting is None:
+            algdir_2_setting = dict()
+            for env in result_grouped:
+                for dir_ in result_grouped[env]:
+                    algdir_2_setting[dir_] = "DotMap(name='',pltargs=DotMap())"
 
-                methods_jsonstr = tools.json2str(algdir_2_algsetting, remove_quotes_key=False, remove_brace=False, remove_quotes_value=True, indent='\t')
-                methods_jsonstr = methods_jsonstr.replace('"',"'")
-                print( '\nalgdir_2_algsetting = ', methods_jsonstr )
+            methods_jsonstr = tools.json2str(algdir_2_setting, remove_quotes_key=False, remove_brace=False, remove_quotes_value=True, indent='\t')
+            methods_jsonstr = methods_jsonstr.replace('"',"'")
+            print( '\nalgdir_2_algsetting = ', methods_jsonstr )
+            # else:
+            #     # modify method name
+            #     for env in result_grouped:
+            #         dirs_all = list(result_grouped[env].keys())
+            #         for dir_ in dirs_all:
+            #             result_grouped[env][ algdir_2_setting[dir_]['name']] = result_grouped[env].pop(dir_)
 
             tools.save_vars( f'{path_group}/results_group.pkl', result_grouped, verbose=1 )
 
@@ -711,10 +711,22 @@ def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, algdir_2_
                 keys_info_sub=key_env_IN_info,
                 fn_loaddata=fn_get_fn_loadresult(key_y_all, key_global_step=key_global_step)
             )
-            write_result_grouped_tensorflow(
-                path_root=path,
+            if algdir_2_setting is None:
+                algdir_2_setting = dict()
+                for dir_ in result_grouped:
+                        algdir_2_setting[dir_] = "DotMap(name='',pltargs=DotMap())"
+
+                methods_jsonstr = tools.json2str(algdir_2_setting, remove_quotes_key=False, remove_brace=False,
+                                                 remove_quotes_value=True, indent='\t')
+                methods_jsonstr = methods_jsonstr.replace('"', "'")
+                print('\nalgdir_2_setting = ', methods_jsonstr)
+                algdir_2_setting = None
+
+            _write_result_grouped_tensorflow(
                 result_grouped=result_grouped,
-                names_y=key_y_all,
+                path_root=path,
+                name_y_all=key_y_all,
+                algdir_2_setting = algdir_2_setting,
                 overwrite=True
             )
         else:
@@ -727,7 +739,7 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
     '''
     Load from directories.
         - contain <finish> file
-        - contain <file_info> file(e.g., args.json)
+        - contain <file_info> file(E.G., args.json)
     :param path_root:
     :type path_root:
     :param depth:
@@ -851,47 +863,63 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
         process.update(1)
     return results_group
 
-def plot_result_grouped(task_all, algdir_2_setting, path_root_data, path_root_save, setting_global=None, IS_DEBUG=False):
+def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_root_save, setting_global=None, IS_DEBUG=False):
     '''
     We define the settings from the global, task and algorithm level.
     Setting Priority: algorithm(algdir_2_algsetting) > task > global
     Also, the sub-specified-setting has highest priority
 
     algdir_2_setting: setting for algorithm
-        <algdir>: <setting>
+        <algdir>:
+            name:
+            <other settings>
 
+        E.G.
+        algdir_2_algsetting = {
+            'alg=QLearning,alg_args={n_buffer=4000,n_batch=64,gamma=0.95,keep_Q_other_a=false}' :
+                DotMap(
+                    name='Target',
+                    pltargs=DotMap()
+                )
+        }
     task:
         dir:
-        key_y: The key to plot y
-        __env:
+        key_y_all: The key to plot y
+        ylabel_all: The label of y axis
+        __env: Note that it will only plot the envs specified here.
             <env>:
                 <setting>
         __alg:
             <alg>:
                 <setting>
 
-    setting_global: default setting for each plot
-
-
-    env_2_algdir_2_result: result
-        <env>:
-            <algdir>:
-                <key_y>_all
-                <key_y>_global_steps: record the global steps
-                <key_y>_global_steps_path: record the global steps from which the global steps are extracted
-
-
-    :param task_all: list of tasks, which include the following keys
+        E.G.
         task_all = [
             DotMap(
-                dir='',
-                name='return_',
+                dir='QLearning_MountainCar',
+                key_y_all='return_',
                 ylabel_all='Reward',
-                env = {
+                __env = {
                     'MountainCar': DotMap(legend=dict(loc='upper right', fontsize=10))
                 }
             )
         ]
+
+
+    setting_global: default setting for each plot
+        E.G.,
+        setting_global_default = DotMap(
+            xlabel = 'Timesteps',
+            linewidth=1.5,
+            # xticks = DotMap(),#E.G.,div=1e6, unit=r'$\times 10^6$', n=5, round=1
+            ci = 60,
+            legend=False,
+            smooth_window_length = 9,
+            fontsize=10,
+            file_ext = 'pdf'
+        )
+
+    :param task_all: list of tasks, which include the following keys
     :type task_all:
     :param algdir_2_setting:
     :type algdir_2_setting:
@@ -930,7 +958,7 @@ def plot_result_grouped(task_all, algdir_2_setting, path_root_data, path_root_sa
     setting_global_default = DotMap(
         xlabel = 'Timesteps',
         linewidth=1.5,
-        # xticks = DotMap(),#e.g.,div=1e6, unit=r'$\times 10^6$', n=5, round=1
+        # xticks = DotMap(),#E.G.,div=1e6, unit=r'$\times 10^6$', n=5, round=1
         ci = 60,
         legend=False,
         smooth_window_length = 9,
@@ -942,143 +970,158 @@ def plot_result_grouped(task_all, algdir_2_setting, path_root_data, path_root_sa
     else:
         setting_global = tools.update_dict( setting_global_default, setting_global )
 
-    from copy import deepcopy
-    # Draw result for each task, e.g., the reward or the likelihood ratio.
+    from copy import deepcopy, copy
+    # Draw result for each task, E.G., the reward or the likelihood ratio.
     for task in task_all:
         # ------- BEGIN Update setting ---------
         setting_global_new = deepcopy(setting_global)
-        setting_task = deepcopy( task )
-        for key in ['dir', 'key_y']:
+        setting_task = copy( task )
+        key_y_all = setting_task.key_y_all
+        ylabel_all = setting_task.ylabel_all
+        if isinstance(key_y_all, list):
+            key_y_all = _strlist2list( key_y_all )
+        if isinstance(ylabel_all, list):
+            ylabel_all = _strlist2list( ylabel_all )
+
+        for key in ['dir', 'key_y_all', 'ylabel_all']:
             setting_task.pop(key)
         setting_task = tools.update_dict( setting_global_new, setting_task )
         # ------------- END --------------------
 
+        for key_y, ylabel in zip(key_y_all, ylabel_all  ):
+            key_x_result = f"{key_y}_global_steps"
+            key_y_result = f"{key_y}_all"
 
-        key_x_result = f"{task.key_y}_global_steps"
-        key_y_result = f"{task.key_y}_all"
+            env_2_algdir_2_result = tools.load_vars(f"{path_root_data}/{task.dir},group/results_group.pkl")
+            '''
+            The format of env_2_algdir_2_result:
+                <env>:
+                    <algdir>:
+                        <key_y>_all
+                        <key_y>_global_steps: record the global steps
+                        <key_y>_global_steps_path: record the global steps from which the global steps are extracted
+            '''
 
-        env_2_algdir_2_result = tools.load_vars(f"{path_root_data}/{task.dir},group/results_group.pkl")
+            if '__env' in task.keys():
+                env_all = task.__env.keys()# Only plot the envs specified
+            else:
+                env_all = env_2_algdir_2_result.keys()
 
+            for env in env_all:
+                legend_all = []
 
-        if '__env' in task.keys():
-            env_all = task.__env.keys()# Only plot the envs specified
-        else:
-            env_all = env_2_algdir_2_result.keys()
+                fig = plt.figure()
+                ax = plt.axes()
 
-        for env in env_all:
-            legend_all = []
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
 
-            fig = plt.figure()
-            ax = plt.axes()
+                # Make sure that all algorithms in result are plot
+                for algdir in env_2_algdir_2_result[env]:
+                    if algdir not in algdir_2_setting:
+                        tools.warn_(f"'{algdir_2_setting[algdir]['name']}' not in algs")
 
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
+                setting_task.env = env
+                for algdir in algdir_2_setting.keys():
+                    if algdir not in env_2_algdir_2_result[env]:
+                        continue
 
-            # Make sure that all algorithms in result are plot
-            for algdir in env_2_algdir_2_result[env]:
-                if algdir not in algdir_2_setting:
-                    tools.warn_(f"'{algdir_2_setting[algdir]['name']}' not in algs")
-
-            setting_task.env = env
-            for algdir in algdir_2_setting.keys():
-                if algdir not in env_2_algdir_2_result[env]:
-                    continue
-
-                # ------- BEGIN Update setting ---------
-                setting_task_tmp = deepcopy(setting_task)
-                setting_alg = algdir_2_setting[algdir]
-                setting = tools.update_dict(setting_task_tmp, setting_alg)
-                setting = tools.update_dict_specifed( setting, setting )
-                # ------------- END ---------------------
-
-
-                x = env_2_algdir_2_result[env][algdir][key_x_result]
-                y = env_2_algdir_2_result[env][algdir][key_y_result]
-                # Smooth
-                y = savgol_filter(y, window_length=setting.smooth_window_length, polyorder=1)
-                sns.tsplot(y,
-                           x,
-                           linewidth=setting.linewidth,
-                           legend=True,
-                           ci=setting.ci,
-                           **setting.pltargs.toDict()
-                           )
-                legend_all.append(setting['name'])  # legend of this plot
-
-            # set grid
-            ax.grid(linestyle='--', linewidth=0.3, color='black', alpha=0.15)
-            if setting.has_key('ylim_start'):
-                # ax.set_ylim(bottom=0, top=120)
-                plt.ylim(bottom=setting.ylim_start)
-            if setting.has_key('ylim_end'):
-                # print(env_setting.ylim_end)
-                ax.set_ylim(top=setting.ylim_end)
-
-            # --- set ticks and labels
-            xlabel = setting.xlabel
-            if setting.has_key('xticks'):
-                xticks = setting.xticks
-                if xticks.has_key('unit'):
-                    xlabel = f'{xlabel}({xticks.unit})'
-
-                locs_xticks, labels_xticks = plt.xticks()
-                loc_min, loc_max = locs_xticks[0], locs_xticks[-1]
-                locs_xticks = np.linspace(loc_min, loc_max, xticks.n + 1)
-                labels_xticks = [''] * locs_xticks.size
-                for ind_, loc in enumerate(locs_xticks):
-                    labels_xticks[ind_] = loc / xticks.div
-                    if xticks.has_key('round'):
-                        labels_xticks[ind_] = round(labels_xticks[ind_], xticks.round)
-                        if xticks.round == 0:
-                            labels_xticks[ind_] = int(labels_xticks[ind_])
-                plt.xticks(locs_xticks)
-                ax.set_xticklabels(labels_xticks)
-
-            plt.xlabel(xlabel, fontsize=setting.fontsize, labelpad=4)
-            plt.ylabel(task.ylabel, fontsize=setting.fontsize, labelpad=4)
-
-            # ----- Set Title
-            # NOT GENERAL. personal habit
-            if '-v' in env:
-                env = env.split('-v')[0]
-            env = env.replace('NoFrameskip', '')
-            plt.title(env, fontsize=setting.fontsize + 3)
-
-            # ----- Set Legend
-            if setting.legend:
-                h = plt.gca().get_lines()
-                leg = plt.legend(handles=h, labels=legend_all, handlelength=4.0,
-                                 ncol=1, **setting.legend)
-
-            # ----- Save figure
-            path_save = f"{path_root_save}/{task.dir}"
-            tools.mkdirs(path_save)
-            print(f'{path_save}/{env}')
-            plt.savefig(f'{path_save}/{env}.{setting.file_ext}', bbox_inches="tight",
-                        pad_inches=0.0 )
-
-            if IS_DEBUG:
-                toolsm.plt.set_position()
-                plt.show()
+                    # ------- BEGIN Update setting ---------
+                    setting_task_tmp = deepcopy(setting_task)
+                    setting_alg = algdir_2_setting[algdir]
+                    setting = tools.update_dict(setting_task_tmp, setting_alg)
+                    setting = tools.update_dict_specifed( setting, setting )
+                    # ------------- END ---------------------
 
 
+                    x = env_2_algdir_2_result[env][algdir][key_x_result]
+                    y = env_2_algdir_2_result[env][algdir][key_y_result]
+                    # Smooth
+                    y = savgol_filter(y, window_length=setting.smooth_window_length, polyorder=1)
+                    sns.tsplot(y,
+                               x,
+                               linewidth=setting.linewidth,
+                               legend=True,
+                               ci=setting.ci,
+                               **setting.pltargs.toDict()
+                               )
+                    legend_all.append(setting['name'])  # legend of this plot
 
+                # set grid
+                ax.grid(linestyle='--', linewidth=0.3, color='black', alpha=0.15)
+                if setting.has_key('ylim_start'):
+                    # ax.set_ylim(bottom=0, top=120)
+                    plt.ylim(bottom=setting.ylim_start)
+                if setting.has_key('ylim_end'):
+                    # print(env_setting.ylim_end)
+                    ax.set_ylim(top=setting.ylim_end)
 
+                # --- set ticks and labels
+                xlabel = setting.xlabel
+                if setting.has_key('xticks'):
+                    xticks = setting.xticks
+                    if xticks.has_key('unit'):
+                        xlabel = f'{xlabel}({xticks.unit})'
 
-def write_result_grouped_tensorflow(*, path_root, result_grouped, names_y,  overwrite=False, name_group=None):
+                    locs_xticks, labels_xticks = plt.xticks()
+                    loc_min, loc_max = locs_xticks[0], locs_xticks[-1]
+                    locs_xticks = np.linspace(loc_min, loc_max, xticks.n + 1)
+                    labels_xticks = [''] * locs_xticks.size
+                    for ind_, loc in enumerate(locs_xticks):
+                        labels_xticks[ind_] = loc / xticks.div
+                        if xticks.has_key('round'):
+                            labels_xticks[ind_] = round(labels_xticks[ind_], xticks.round)
+                            if xticks.round == 0:
+                                labels_xticks[ind_] = int(labels_xticks[ind_])
+                    plt.xticks(locs_xticks)
+                    ax.set_xticklabels(labels_xticks)
+
+                plt.xlabel(xlabel, fontsize=setting.fontsize, labelpad=4)
+                plt.ylabel(ylabel, fontsize=setting.fontsize, labelpad=4)
+
+                # ----- Set Title
+                # NOT GENERAL. personal habit
+                if '-v' in env:
+                    env = env.split('-v')[0]
+                env = env.replace('NoFrameskip', '')
+                plt.title(env, fontsize=setting.fontsize + 3)
+
+                # ----- Set Legend
+                if setting.legend:
+                    h = plt.gca().get_lines()
+                    leg = plt.legend(handles=h, labels=legend_all, handlelength=4.0,
+                                     ncol=1, **setting.legend)
+
+                # ----- Save figure
+                path_save = f"{path_root_save}/{task.dir}"
+                tools.mkdirs(path_save)
+                print(f'{path_save}/{env}')
+                plt.savefig(f'{path_save}/{env}.{setting.file_ext}', bbox_inches="tight",
+                            pad_inches=0.0 )
+
+                if IS_DEBUG:
+                    toolsm.plt.set_position()
+                    plt.show()
+
+# NOTE: The interface of _write_result_grouped_tensorflow may be different from those of write_result_grouped_plot. However, just let it go.
+
+def _write_result_grouped_tensorflow(*, result_grouped, path_root, name_y_all, overwrite=False, name_group=None, algdir_2_setting=None):
 
     path_root_new = f'{path_root},group'
     if name_group:
         path_root_new += f',{name_group}'
 
-    if isinstance(names_y, str):
-        names_y = _strlist2list(names_y)
+
     tools.mkdir(path_root_new)
     contain_subtask = not ('path_all' in list(result_grouped.values())[0].keys())
 
     del_first_time = True
     for ind_group,name_main in enumerate(result_grouped.keys()):
-        path_log = f'{path_root_new}/{name_main}'
+        if algdir_2_setting is not None and name_main in algdir_2_setting.keys():#name_main is algdir
+            path_log = f"{path_root_new}/{algdir_2_setting[name_main].name}"
+        else:
+            path_log = f'{path_root_new}/{name_main}'
+
         if osp.exists(path_log):
             if overwrite:
                 if tools.safe_delete(path_log, confirm=del_first_time):
@@ -1095,7 +1138,7 @@ def write_result_grouped_tensorflow(*, path_root, result_grouped, names_y,  over
         def log_result(_obj, name_sub=''):
 
             logger_log.log_str(f"name_main:{name_main},name_sub:{name_sub},len:{len(_obj.path_all)},paths:\n{_obj.path_all}\n\n")
-            for name_y in names_y:
+            for name_y in name_y_all:
                 if f'{name_y}_all' not in _obj.keys():
                     continue
 
@@ -1120,7 +1163,6 @@ def write_result_grouped_tensorflow(*, path_root, result_grouped, names_y,  over
             log_result(result_grouped[name_main])
         else:
             for _,name_sub in enumerate(result_grouped[name_main].keys()):
-                # print(f'{name_main},{name_sub}')
                 log_result(result_grouped[name_main][name_sub], f'/{name_sub}')
 
 
