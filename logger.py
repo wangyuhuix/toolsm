@@ -309,10 +309,10 @@ def fmt_row(values, widths=None, is_header=False, width_max=30):
     #     widths = [widths] * len(row)
     if not isinstance(values, list):
         values = list(values)
-    if widths is None:
+    if widths is None or len(widths) != len(values):
         widths = [None] * len(values)
     assert isinstance(widths, Iterable )
-    assert len(widths) == len(values)
+
     items = [ fmt_item(x, widths[ind], width_max) for ind, x in enumerate(values)]
     widths_new = list(map( len, items ))
 
@@ -417,7 +417,7 @@ class LogOutputFormat(OutputFormat):
         self.write_str( line )
         # --- update widths
         if widths is not None:
-            if self.widths is None:
+            if self.widths is None or len(widths) != len(self.widths):
                 self.widths = widths
             else:
                 self.widths = np.maximum(self.widths, widths)
@@ -425,7 +425,7 @@ class LogOutputFormat(OutputFormat):
 
     def write_kvs(self, kvs):
         # write header
-        if self.ind % self.output_header_interval == 0:
+        if self.ind % self.output_header_interval == 0 or len(kvs) != len(self.widths):
             items, widths = fmt_row(kvs.keys(), self.widths, is_header=True,width_max=self.width_max)
             self._write_items(items, widths  )
         # write body
@@ -512,33 +512,33 @@ class Logger(object):
         tools.print_( f'log:\n{path}\n{file_basename}'  ,color='green' )
         self.output_formats = [make_output_format(f, path, file_basename, append=file_append) for f in formats]
 
+    def log(self, *args, **kwargs):
+        for arg in args:
+            self.log_str(arg)
+        self.log_keyvalues(**kwargs)
+
     def log_str(self, s, _color=None):
         for fmt in self.output_formats:
             fmt.write_str(s)
 
+    def log_and_dump_keyvalues(self, **kwargs):
+        self.kvs_cache.update(kwargs)
+        self.dump()
+
     def log_keyvalues(self, **kwargs):
-        # assert len(args) <= 2
-        # if len(args) == 2:
-        #     args = {args[0]:args[1]}
-        # if len(args) == 1:
-        #     assert isinstance(args, dict)
-        #     self.kvs_cache.update( args )
-
-
-        self.kvs_cache.update(kwargs)
-        self.dump_keyvalues()
-
-    def log_keyvalue(self, **kwargs):
         self.kvs_cache.update(kwargs)
 
-    def dump_keyvalues(self):
-        row_cache = self.kvs_cache
-        if len(row_cache) == 0:
+    def need_dump(self):
+        return len(self.kvs_cache) > 0
+
+    def dump(self):
+        kvs_cache = self.kvs_cache
+        if len(kvs_cache) == 0:
             return
 
         for fmt in self.output_formats:
-            fmt.write_kvs(row_cache)
-        row_cache.clear()
+            fmt.write_kvs(kvs_cache)
+        kvs_cache.clear()
 
     def set_level(self, level):
         self.level = level
