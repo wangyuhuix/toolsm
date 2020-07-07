@@ -643,13 +643,15 @@ def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, algdir_2_
     '''
 
     from copy import deepcopy, copy
+    # NOT GENERAL! Personal habit!
+    setting_global_default = DotMap(
+        key_global_step_IN_result='global_step',
+        key_env_IN_info='env'
+    )
     if setting_global is None:
-        # NOT GENERAL! Personal habit!
-        setting_global = DotMap(
-            key_global_step_IN_result='global_step',
-            key_env_IN_info='env'
-        )
-
+        setting_global = setting_global_default
+    else:
+        setting_global = tools.update_dict(setting_global_default, setting_global)
 
 
     for task in task_all:
@@ -863,7 +865,7 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
         process.update(1)
     return results_group
 
-def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_root_save, setting_global=None, IS_DEBUG=False):
+def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_root_save=None, setting_global=None, IS_DEBUG=False):
     '''
     We define the settings from the global, task and algorithm level.
     Setting Priority: algorithm(algdir_2_algsetting) > task > global
@@ -957,9 +959,8 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
 
     setting_global_default = DotMap(
         xlabel = 'Timesteps',
-        linewidth=1.5,
         # xticks = DotMap(),#E.G.,div=1e6, unit=r'$\times 10^6$', n=5, round=1
-        ci = 60,
+        pltargs = DotMap( ci=60, linewidth=1.5 ),
         legend=False,
         smooth_window_length = 9,
         fontsize=10,
@@ -978,9 +979,9 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
         setting_task = copy( task )
         key_y_all = setting_task.key_y_all
         ylabel_all = setting_task.ylabel_all
-        if isinstance(key_y_all, list):
+        if isinstance(key_y_all, str):
             key_y_all = _strlist2list( key_y_all )
-        if isinstance(ylabel_all, list):
+        if isinstance(ylabel_all, str):
             ylabel_all = _strlist2list( ylabel_all )
 
         for key in ['dir', 'key_y_all', 'ylabel_all']:
@@ -1040,9 +1041,7 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
                     y = savgol_filter(y, window_length=setting.smooth_window_length, polyorder=1)
                     sns.tsplot(y,
                                x,
-                               linewidth=setting.linewidth,
                                legend=True,
-                               ci=setting.ci,
                                **setting.pltargs.toDict()
                                )
                     legend_all.append(setting['name'])  # legend of this plot
@@ -1093,7 +1092,10 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
                                      ncol=1, **setting.legend)
 
                 # ----- Save figure
-                path_save = f"{path_root_save}/{task.dir}"
+                if path_root_save is not None:
+                    path_save = f"{path_root_save}/{task.dir}"
+                else:
+                    path_save = f'{path_root_data}/{task.dir},group'
                 tools.mkdirs(path_save)
                 print(f'{path_save}/{env}')
                 plt.savefig(f'{path_save}/{env}.{setting.file_ext}', bbox_inches="tight",
