@@ -5,9 +5,20 @@ from collections import namedtuple
 
 
 
+from collections import namedtuple
+import torch
+
+
+XY  = namedtuple('XY', ('x', 'y'))
+
+def toXY(data):
+    return XY( *data )
+
+def fn_null(data):
+    return data
 
 class __Buffer_Base():
-    def __init__(self, fn_convert_data=lambda x: x):
+    def __init__(self, fn_convert_data=fn_null):
         self.fn_convert_data = fn_convert_data
 
 
@@ -76,7 +87,7 @@ class Bundle(__Buffer_Base):
         :param kwargs:
         :type kwargs:
         '''
-        self.data = data
+        self._data = data
         if isinstance(data, tuple) or isinstance(data, list):
             for i in range( len(data)-1 ):
                 assert data[i].shape[0] == data[i+1].shape[0]
@@ -85,14 +96,14 @@ class Bundle(__Buffer_Base):
 
     @property
     def len(self):
-        data = self.data
+        data = self._data
         if isinstance(data, tuple) or isinstance(data, list):
             return len(data[0])#Even for numpy , you can also use len() which return
         else:
             return len(data)
 
     def get_data_by_inds(self, ind_all):
-        data = self.data
+        data = self._data
         if isinstance(data, tuple) or isinstance(data, list):
             result = []
             for i in range(len(data) ):
@@ -103,18 +114,23 @@ class Bundle(__Buffer_Base):
 
         return result
 
+    @property
+    def all(self):
+        return self.fn_convert_data(self._data)
 
 
 if __name__ == '__main__':
     # replaybuffer = Buffer(n=10)
     # for i in range(10):
     #     replaybuffer.push( i )
-    #
+
     # for x in replaybuffer.get_batch_all(3, random=True):
     #     print(x)
 
     x = np.arange( 10 ).reshape( (5,-1) )
-    # y = np.arange( 10,30 ).reshape( (5,-1) )
-    dataset = Bundle( (x) )
+    y = np.arange( 10,30 ).reshape( (5,-1) )
+    dataset = Bundle( (x,y), fn_convert_data=toXY )
+    import toolsm.tools as tools
+    tools.save_vars( 'd.pkl', dataset )
     for x in dataset.get_batch_all(4, random=False):
         print(x)

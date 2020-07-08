@@ -493,14 +493,15 @@ def make_output_format(fmt, path='', basename='', append=False):
 class Logger(object):
     DEFAULT = None
 
-    def __init__(self, formats=[type.stdout], path='', file_basename=None, file_append=False):
+    def __init__(self, formats=[type.stdout], path='', file_basename=None, file_is_append=False):
         '''
+        formats = 'stdout'
         :param formats: formats, E.G.,'stdout,log,csv,json'
         :type formats:str
         :param file_basename:
         :type file_basename:
-        :param file_append:
-        :type file_append:
+        :param file_is_append:
+        :type file_is_append:
         '''
         formats = tools.str2list(formats)
         self.kvs_cache = OrderedDict()  # values this iteration
@@ -510,7 +511,7 @@ class Logger(object):
         self.base_name = file_basename
         self.path = path
         tools.print_( f'log:\n{path}\n{file_basename}'  ,color='green' )
-        self.output_formats = [make_output_format(f, path, file_basename, append=file_append) for f in formats]
+        self.output_formats = [make_output_format(f, path, file_basename, append=file_is_append) for f in formats]
 
     def log(self, *args, **kwargs):
         for arg in args:
