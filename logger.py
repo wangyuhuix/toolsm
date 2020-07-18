@@ -526,6 +526,7 @@ class Logger(object):
         self.kvs_cache.update(kwargs)
         self.dump()
 
+    # NOTE that the previous version execute dump immediately
     def log_keyvalues(self, **kwargs):
         self.kvs_cache.update(kwargs)
 
@@ -629,7 +630,7 @@ def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, algdir_2_
         key_global_step_IN_result
         key_env_IN_info
     :type task_all:
-    :param task_type:
+    :param task_type: Generate_Result_For_Plot, Generate_Tensorflow
     :type task_type:
     :param fn_loaddata:
     :type fn_loaddata:
@@ -951,11 +952,14 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
     # Set default value of algdir_2_algsetting
 
     for dir_, algsetting in algdir_2_setting.items():
-        if 'color' not in algsetting.pltargs:
-            algsetting.pltargs['color'] = COLORS_EASY_DISTINGUISH.pop(0)
-        else:
+        if 'color' in algsetting.pltargs:
             if algsetting.pltargs['color'] in COLORS_EASY_DISTINGUISH:
                 COLORS_EASY_DISTINGUISH.remove( algsetting.pltargs['color'] )
+
+    for dir_, algsetting in algdir_2_setting.items():
+        if 'color' not in algsetting.pltargs:
+            algsetting.pltargs['color'] = COLORS_EASY_DISTINGUISH.pop(0)
+
 
 
     setting_global_default = DotMap(
@@ -991,6 +995,7 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
         # ------------- END --------------------
 
         for key_y, ylabel in zip(key_y_all, ylabel_all  ):
+            setting_task.key_y = key_y
             key_x_result = f"{key_y}_global_steps"
             key_y_result = f"{key_y}_all"
 
@@ -1045,7 +1050,20 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
                                legend=True,
                                **setting.pltargs.toDict()
                                )
+
                     legend_all.append(setting['name'])  # legend of this plot
+
+                yticks_extra = []
+                # NOT GENERAL.
+                # -------- BEGIN Draw clippingrange=1.2 -----
+
+                if key_y == 'maximum_ratio':
+                    yticks_extra.append(1.2)
+                    plt.plot( x, [1.2]*len(x), '--', color='black', linewidth=3.2  )
+                    legend_all.append( 'Upper Clipping Range' )
+                # ------------------- END ---------------
+
+
 
                 # set grid
                 ax.grid(linestyle='--', linewidth=0.3, color='black', alpha=0.15)
@@ -1079,6 +1097,8 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
                 plt.xlabel(xlabel, fontsize=setting.fontsize, labelpad=4)
                 plt.ylabel(ylabel, fontsize=setting.fontsize, labelpad=4)
 
+                plt.yticks(list(plt.yticks()[0]) + yticks_extra)
+
                 # ----- Set Title
                 # NOT GENERAL. personal habit
                 if '-v' in env:
@@ -1093,13 +1113,19 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
                                      ncol=1, **setting.legend)
 
                 # ----- Save figure
+                # if len(key_y_all) == 1:
+                #     suffix = ''
+                # else:
+                suffix = f'{key_y}_'
+
+
                 if path_root_save is not None:
                     path_save = f"{path_root_save}/{task.dir}"
                 else:
                     path_save = f'{path_root_data}/{task.dir},group'
                 tools.mkdirs(path_save)
-                print(f'{path_save}/{env}')
-                plt.savefig(f'{path_save}/{env}.{setting.file_ext}', bbox_inches="tight",
+                print(f'{path_save}/{suffix}{env}')
+                plt.savefig(f'{path_save}/{suffix}{env}.{setting.file_ext}', bbox_inches="tight",
                             pad_inches=0.0 )
 
                 if IS_DEBUG:
@@ -1153,13 +1179,13 @@ def _write_result_grouped_tensorflow(*, result_grouped, path_root, name_y_all, o
                 for ind, global_step in enumerate(global_steps):
                     keyvalues = dict(global_step=global_step)
                     keyvalues[f'{name_y}{name_sub}'] = values[ind]
-                    logger.log_keyvalues(**keyvalues)
+                    logger.log_and_dump_keyvalues(**keyvalues)
 
 
                 for i in range(ind_group, ind_group+2):
                     keyvalues = dict(global_step=i)
                     keyvalues[f'count_{name_y}{name_sub}'] = len(values_all)
-                    logger.log_keyvalues(**keyvalues)
+                    logger.log_and_dump_keyvalues(**keyvalues)
 
 
         if not contain_subtask:
@@ -1183,8 +1209,14 @@ def get_load_debugs_fn(key_y_all, **kwargs):
         filename_global_step = 'process.csv'
         read_csv_args = dict(sep='\t') #TODO: The ',' version
         file_global_step = f'{p}/{filename_global_step}'
-        key_global_step = 'total_timesteps'
+        # key_global_step = 'global_step'
+
         process = pd.read_csv(file_global_step, **read_csv_args)
+        # NOT GENERAL. for history reasons.
+        for key_global_step in ['total_timesteps', 'global_step']:
+            if key_global_step in list(process.head()):
+                break
+            
         global_steps = process.loc[:, key_global_step]
 
 

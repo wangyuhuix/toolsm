@@ -22,29 +22,32 @@ class __Buffer_Base():
         self.fn_convert_data = fn_convert_data
 
 
+    def __len__(self):
+        return self.length
+
     @property
-    def len(self):
+    def length(self):
         raise NotImplementedError
 
     def can_sample(self, n_sample):
-        return self.len >= n_sample
+        return self.length >= n_sample
 
     def sample(self, n_sample):
         if not self.can_sample(n_sample):
-            warn( f'Buffer contains {self.len}, while sample size is {n_sample} and has been adjusted to be {self.len}' )
-        ind_all = np.random.choice(self.len, min( self.len, n_sample ), replace=False)
+            warn( f'Buffer contains {self.length}, while sample size is {n_sample} and has been adjusted to be {self.length}' )
+        ind_all = np.random.choice(self.length, min( self.length, n_sample ), replace=False)
         return self.fn_convert_data( self.get_data_by_inds(ind_all) )
 
 
     def get_batch_all(self, n_batch, random=False):
         if random:
-            ind_all = np.random.permutation( self.len ).tolist()
+            ind_all = np.random.permutation( self.length ).tolist()
         else:
-            ind_all = list(range( self.len ))
-        n_iteration = int(math.ceil( self.len / n_batch ))
+            ind_all = list(range( self.length ))
+        n_iteration = int(math.ceil( self.length / n_batch ))
 
-        if n_iteration*n_batch > self.len:
-            ind_all.extend( ind_all[ :n_iteration*n_batch-self.len ]  )
+        if n_iteration*n_batch > self.length:
+            ind_all.extend( ind_all[ :n_iteration*n_batch-self.length ]  )
 
         for i in range(n_iteration):
             data_batch = self.get_data_by_inds(ind_all[i * n_batch: (i + 1) * n_batch])
@@ -59,8 +62,10 @@ class Buffer(__Buffer_Base):
         self.ind = 0
         super().__init__(**kwargs)
 
+
+
     @property
-    def len(self):
+    def length(self):
         return len(self.buffer)
 
     def get_data_by_inds(self, ind_all):
@@ -95,7 +100,7 @@ class Bundle(__Buffer_Base):
 
 
     @property
-    def len(self):
+    def length(self):
         data = self._data
         if isinstance(data, tuple) or isinstance(data, list):
             return len(data[0])#Even for numpy , you can also use len() which return
