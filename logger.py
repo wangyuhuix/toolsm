@@ -677,14 +677,14 @@ def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, algdir_2_
                 path_root = path,
                 depth=2,
                 keys_info_main=key_env_IN_info,
-                keys_info_sub=-2,
+                keys_info_sub=-2,#alg dir
                 fn_loaddata=fn_get_fn_loadresult(key_y_all, key_global_step=key_global_step)
             )
             # modify env name
-            envs = list( result_grouped.keys())
-            for env in envs:
-                env_new = env.replace('env=','')
-                result_grouped[env_new] = result_grouped.pop(env)
+            # envs = list( result_grouped.keys())
+            # for env in envs:
+            #     env_new = env.replace('env=','')
+            #     result_grouped[env_new] = result_grouped.pop(env)
 
             # if algdir_2_setting is None:
             algdir_2_setting = dict()
@@ -707,6 +707,26 @@ def group_result(task_all, task_type, fn_get_fn_loadresult, path_root, algdir_2_
         elif task_type == 'check':
             result_grouped = tools.load_vars(f'{path_group}/results_group.pkl')
             pass
+        elif task_type == 'Generate_alg_2_env_2_result':
+            result_grouped = get_result_grouped(
+                path_root = path,
+                depth=2,
+                keys_info_main=-2,
+                keys_info_sub=key_env_IN_info,
+                fn_loaddata=fn_get_fn_loadresult(key_y_all, key_global_step=key_global_step)
+            )
+            if algdir_2_setting is None or len(algdir_2_setting) == 0:
+                algdir_2_setting = dict()
+                for dir_ in result_grouped:
+                        algdir_2_setting[dir_] = "DotMap(name='',pltargs=DotMap())"
+
+                methods_jsonstr = tools.json2str(algdir_2_setting, remove_quotes_key=False, remove_brace=False, remove_quotes_value=True, indent='\t')
+                methods_jsonstr = methods_jsonstr.replace('"', "'")
+                print('\nalgdir_2_setting = ', methods_jsonstr)
+                algdir_2_setting = None
+
+            tools.save_vars(f'{path_group}/results_group.pkl', result_grouped, verbose=1)
+
         elif task_type == 'Generate_Tensorflow':
             result_grouped = get_result_grouped(
                 path_root = path,
@@ -810,35 +830,42 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
             for i_,k_ in list(enumerate(keys_info_main)):
                 if k_ not in info.keys():
                     keys_info_main.remove(k_)
-            name_method = tools.json2str(info, separators=(',', '='), keys_include=keys_info_main, remove_quotes_key=True, remove_brace=True)
+            name_main = tools.json2str(info, separators=(',', '='), keys_include=keys_info_main, remove_quotes_key=True, remove_brace=True, remove_key=True)
+
+            # NOT GENERAL
+            name_main = name_main.replace( 'NoFrameskip', '' )
+
         elif isinstance(keys_info_main, int):
             # Use directory name as keys_info_main
-            name_method = path_split[keys_info_main]
+            name_main = path_split[keys_info_main]
 
             # NOT GENERAL, just for my personal habit....
-            name_method = name_method.replace('Link to ','')
-            name_method = name_method.replace(',tidy.eval', '')
+            name_main = name_main.replace('Link to ','')
+            name_main = name_main.replace(',tidy.eval', '')
 
 
         term = DotMap(path_all=[], args_all=[])
 
         if not contain_subtask:
-            if name_method not in results_group.keys():
-                results_group[name_method] = term.copy()
-            obj = results_group[name_method]
+            if name_main not in results_group.keys():
+                results_group[name_main] = term.copy()
+            obj = results_group[name_main]
         else:#contains sub figure
             if isinstance(keys_info_sub, list):
-                name_task = tools.json2str(info, separators=(',', '='), keys_include=keys_info_sub, remove_quotes_key=True, remove_brace=True)
-            elif isinstance(keys_info_sub, int):
-                name_task = path_split[keys_info_sub]
-                name_task = name_task.replace('Link to ','')
-                name_task = name_task.replace(',tidy.eval', '')
+                name_sub = tools.json2str(info, separators=(',', '='), keys_include=keys_info_sub, remove_quotes_key=True, remove_brace=True, remove_key=True)
+                # NOT GENERAL
+                name_sub = name_sub.replace('NoFrameskip', '')
 
-            if name_method not in results_group.keys():
-                results_group[name_method] = dict()
-            if name_task not in results_group[name_method].keys():
-                results_group[name_method][name_task] = term.copy()
-            obj = results_group[name_method][name_task]
+            elif isinstance(keys_info_sub, int):
+                name_sub = path_split[keys_info_sub]
+                name_sub = name_sub.replace('Link to ','')
+                name_sub = name_sub.replace(',tidy.eval', '')
+
+            if name_main not in results_group.keys():
+                results_group[name_main] = dict()
+            if name_sub not in results_group[name_main].keys():
+                results_group[name_main][name_sub] = term.copy()
+            obj = results_group[name_main][name_sub]
 
         obj.path_all.append( path )
         obj.args_all.append( info )
@@ -874,7 +901,7 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
     Also, the sub-specified-setting has highest priority
 
     algdir_2_setting: setting for algorithm
-        <algdir>:
+        <algdir>: Note that only the algs specified here will be plot
             name:
             <other settings>
 
@@ -890,7 +917,7 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
         dir:
         key_y_all: The key to plot y
         ylabel_all: The label of y axis
-        __env: Note that it will only plot the envs specified here.
+        __env: Note that only the envs specified here will be plot
             <env>:
                 <setting>
         __alg:
@@ -952,6 +979,8 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
     # Set default value of algdir_2_algsetting
 
     for dir_, algsetting in algdir_2_setting.items():
+        if 'pltargs' not in algsetting:
+            algsetting.pltargs = DotMap()
         if 'color' in algsetting.pltargs:
             if algsetting.pltargs['color'] in COLORS_EASY_DISTINGUISH:
                 COLORS_EASY_DISTINGUISH.remove( algsetting.pltargs['color'] )
@@ -994,20 +1023,23 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
         setting_task = tools.update_dict( setting_global_new, setting_task )
         # ------------- END --------------------
 
+
+
+        env_2_algdir_2_result = tools.load_vars(f"{path_root_data}/{task.dir},group/results_group.pkl")
+        '''
+        The format of env_2_algdir_2_result:
+            <env>:
+                <algdir>:
+                    <key_y>_all
+                    <key_y>_global_steps: record the global steps
+                    <key_y>_global_steps_path: record the global steps from which the global steps are extracted
+        '''
+
         for key_y, ylabel in zip(key_y_all, ylabel_all  ):
             setting_task.key_y = key_y
             key_x_result = f"{key_y}_global_steps"
             key_y_result = f"{key_y}_all"
 
-            env_2_algdir_2_result = tools.load_vars(f"{path_root_data}/{task.dir},group/results_group.pkl")
-            '''
-            The format of env_2_algdir_2_result:
-                <env>:
-                    <algdir>:
-                        <key_y>_all
-                        <key_y>_global_steps: record the global steps
-                        <key_y>_global_steps_path: record the global steps from which the global steps are extracted
-            '''
 
             if '__env' in task.keys():
                 env_all = task.__env.keys()# Only plot the envs specified
@@ -1026,7 +1058,7 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
                 # Make sure that all algorithms in result are plot
                 for algdir in env_2_algdir_2_result[env]:
                     if algdir not in algdir_2_setting:
-                        tools.warn_(f"'{algdir_2_setting[algdir]['name']}' not in algs")
+                        tools.warn_(f"'{algdir}' not in algdir_2_setting")
 
                 setting_task.env = env
                 for algdir in algdir_2_setting.keys():
@@ -1072,7 +1104,7 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
                     plt.ylim(bottom=setting.ylim_start)
                 if setting.has_key('ylim_end'):
                     # print(env_setting.ylim_end)
-                    ax.set_ylim(top=setting.ylim_end)
+                    plt.ylim(top=setting.ylim_end)
 
                 # --- set ticks and labels
                 xlabel = setting.xlabel
@@ -1097,7 +1129,7 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
                 plt.xlabel(xlabel, fontsize=setting.fontsize, labelpad=4)
                 plt.ylabel(ylabel, fontsize=setting.fontsize, labelpad=4)
 
-                plt.yticks(list(plt.yticks()[0]) + yticks_extra)
+                # plt.yticks(list(plt.yticks()[0]) + yticks_extra)#TODO
 
                 # ----- Set Title
                 # NOT GENERAL. personal habit
@@ -1110,13 +1142,13 @@ def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_r
                 if setting.legend:
                     h = plt.gca().get_lines()
                     leg = plt.legend(handles=h, labels=legend_all, handlelength=4.0,
-                                     ncol=1, **setting.legend)
+                                     ncol=1, **setting.legend.toDict())
 
                 # ----- Save figure
-                # if len(key_y_all) == 1:
-                #     suffix = ''
-                # else:
-                suffix = f'{key_y}_'
+                if len(key_y_all) == 1:
+                    suffix = ''
+                else:
+                    suffix = f'{key_y}_'
 
 
                 if path_root_save is not None:
@@ -1289,19 +1321,20 @@ def get_load_csv_fn(key_y_all, key_global_step='global_step', filename='process.
         key_y_all = [key_y_all]
 
     def load_csv_entity(p, *args, **kwargs):
-        # NOT GENERAL. For personal habit
-        if 'alg=trpo' in p:
-            key_global_step_t = 'global_step'
-        else:
-            key_global_step_t = key_global_step
+
+
 
         file = f'{p}/{filename}'
         if not osp.exists( file ):
             tools.warn_( f'not exist:\n{file}' )
             return None
         process = pd.read_csv(file, **args_readfile)
+        # NOT GENERAL. for history reasons.
+        for key_global_step in ['total_timesteps', 'global_step']:
+            if key_global_step in list(process.head()):
+                break
         results_all = []
-        global_steps_ori = process.loc[:, key_global_step_t]
+        global_steps_ori = process.loc[:, key_global_step]
 
         for key_y in key_y_all:
             v_ori = process.loc[:, key_y]
