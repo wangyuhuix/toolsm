@@ -11,6 +11,7 @@ import time
 import time
 
 
+
 class Timer():
     def __init__(self):
         self.reset()
@@ -320,12 +321,12 @@ def json2file_old(obj, keys_remove=[], dependencies={}, **kwargs):
     return args_str
 
 
-def json2str_file(obj, remove_brace=True, keys_exclude=[] ):
-    return json2str( obj, separators=(',', '='), remove_quotes_key=True, remove_quotes_value=True, remove_brace=remove_brace, keys_exclude=keys_exclude )
+def json2str_file(obj, remove_brace=True, keys_exclude=[], fn_key=None):
+    return json2str( obj, separators=(',', '='), remove_quotes_key=True, remove_quotes_value=True, remove_brace=remove_brace, keys_exclude=keys_exclude, fn_key=fn_key )
 
 
 
-def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_value=True, remove_brace=True, remove_key=False, keys_include=None, keys_exclude=None, **jsondumpkwargs):
+def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_value=True, remove_brace=True, remove_key=False, keys_include=None, keys_exclude=None, fn_key=None, **jsondumpkwargs):
 
     if isinstance(keys_include, list):
         obj_ori = obj
@@ -346,6 +347,18 @@ def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_v
         if len(args_str)>0:
             args_str = args_str[:-1]
     else:
+        if fn_key is not None:
+            keys_old = list( obj.keys() )
+            for key in keys_old:
+                key_new = fn_key(key)
+                if key_new in keys_old:
+                    warn( f'key {key_new} exist. (old key is {key})' )
+                obj[ key_new ] = obj.pop( key )
+
+        for key in obj.keys():
+            if isinstance( obj[key], dict ):
+                obj[key] = json2str(obj[key], separators=separators, remove_quotes_key=remove_quotes_key, remove_quotes_value=remove_quotes_value, remove_brace=remove_brace, remove_key=remove_key, keys_include=keys_include, keys_exclude=keys_exclude, fn_key=fn_key, **jsondumpkwargs)
+
         args_str = json.dumps(obj, separators=separators, **jsondumpkwargs)
         # print(args_str)
         if remove_brace:

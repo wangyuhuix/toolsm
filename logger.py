@@ -12,7 +12,7 @@ import pandas as pd
 
 
 from dotmap import DotMap
-def arg2str(i):
+def arg2str(i, fn_key=lambda __x: __x):
     if isinstance(i, float):
         if float.is_integer(i):
             i = int(i)
@@ -24,7 +24,7 @@ def arg2str(i):
     if isinstance(i, DotMap ):
         i = i.toDict()
     if isinstance(i, dict):
-        i = tools.json2str_file(i, remove_brace=False)
+        i = tools.json2str_file(i, remove_brace=False, fn_key=fn_key)
     return i
 
 # print( int2str(20000) )
@@ -71,13 +71,26 @@ def get_logger_dir(dir_log_debug=None, dir_log_release=None, dir_indicator=None)
     return root_dir
 
 
+def __trucate_s(s):
+    s_split = s.split('_')
+
+    for i in range(len(s_split)):
+        s_split[i] = s_split[i][:2]
+
+    s = '_'.join(s_split)
+    # TODO: split by the upper case
+    return s
+
+
+
+
 # TODO: when the dir is running by other thread, we should also exited.
 def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, root_dir=''):
     '''
     Please add the following keys to the argument:
         parser.add_argument('--log_dir_mode', default='finish_then_exit_else_overwrite', type=str)#finish_then_exit_else_overwrite
         parser.add_argument('--keys_group', default=['clipped_type'], type=ast.literal_eval)
-        parser.add_argument('--name_group', default='', type=str)
+        parser.add_argument('--name_group_ext', default='', type=str)
         parser.add_argument('--name_run', default="", type=str)
 
     Please rememer to add 'finish' when the program exit!!!!
@@ -112,50 +125,71 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
 
 
     # ---------------- get name_group -------------
-    name_key_group = ''
-    for i,key in enumerate(args.keys_group):
-        if i>0:
-            name_key_group += SPLIT
-        name_key_group += f'{key}={arg2str(args[key])}'
+    def get_name_group( key2str=None ):
+        if key2str is not None:
+            key2str_entity = key2str
+        else:
+            key2str_entity = lambda __x: __x
+        name_group = ''
+        for i,key in enumerate(args.keys_group):
+            if i>0:
+                name_group += SPLIT
+            name_group += f'{key2str_entity(key)}={arg2str(args[key], fn_key=key2str )}'
 
-    args.name_group = name_key_group + (SPLIT if name_key_group and args.name_group else '') + args.name_group
+        name_group = name_group + (SPLIT if name_group and args.name_group_ext else '') + args.name_group_ext
 
-    if not args.name_group:
-        args.name_group = 'tmpGroup'
-        print( f'args.name_group is empty. It is set to be {args.name_group}' )
+        if not name_group:
+            name_group = 'tmpGroup'
+            print( f'args.name_group is empty. It is set to be {name_group}' )
+
+        return name_group
+
+    name_group = get_name_group()
     key_exclude_all.extend(args.keys_group)
-
+    if len( name_group ) >= 256:
+        name_group = get_name_group( __trucate_s )
+    args.name_group = name_group
 
     # ----------- get sub directory -----------
+
+
     key_exclude_all.extend(['log_dir_mode', 'name_group', 'keys_group', 'name_run', 'is_multiprocess'])
 
+    def get_name_task( key2str=None ):
+        if key2str is not None:
+            key2str_entity = key2str
+        else:
+            key2str_entity = lambda __x: __x
 
-    # --- add first key
-    if key_first is not None and key_first not in key_exclude_all:
-        key_exclude_all.append(key_first)
-        key = key_first
-        name_task = f'{SPLIT}{key}={arg2str(args[key])}'
+        # --- add first key
+        if key_first is not None and key_first not in key_exclude_all:
+            key_exclude_all.append(key_first)
+            key = key_first
+            name_task = f'{SPLIT}{key2str_entity(key)}={arg2str(args[key], fn_key=key2str )}'
 
-        key_exclude_all.append(key_first)
+            key_exclude_all.append(key_first)
 
-    else:
-        # key_first = list(set(args.keys()).difference(set(keys_exclude)))[0]
-        name_task = f''
+        else:
+            # key_first = list(set(args.keys()).difference(set(keys_exclude)))[0]
+            name_task = f''
 
 
-    # --- add keys common
-    for key in args.keys():
-        if key not in key_exclude_all:
-            name_task += f'{SPLIT}{key}={arg2str(args[key])}'
+        # --- add keys common
+        for key in args.keys():
+            if key not in key_exclude_all:
+                name_task += f'{SPLIT}{ key2str_entity(key) }={arg2str(args[key], fn_key=key2str)}'
 
-            # print( f'{key},{type(args_dict[key])}' )
-    # name_task += ('' if name_suffix == '' else f'{split}{name_suffix}')
 
-    key = 'name_run'
-    if args.has_key(key) and not args[key] == '':
-        name_task += f'{SPLIT}{key}={arg2str(args[key])}'
+        key = 'name_run'
+        if args.has_key(key) and not args[key] == '':
+            name_task += f'{SPLIT}{key2str_entity(key)}={arg2str(args[key], fn_key=key2str)}'
 
-    name_task = name_task[1:]
+        name_task = name_task[1:]
+        return name_task
+
+    name_task = get_name_task()
+    if len( name_task ) >= 256:
+        name_task = get_name_task( __trucate_s )
 
     # ----------------- prepare directory ----------
     def get_dir_full( d_type, suffix='', print_root=True, print_dirtype=True ):

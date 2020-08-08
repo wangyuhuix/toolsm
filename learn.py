@@ -39,25 +39,28 @@ class __Buffer_Base():
         return self.fn_convert_data( self.get_data_by_inds(ind_all) )
 
 
-    def get_batch_all(self, n_batch, random=False):
+    def get_batch_all(self, n_batch, random=False, fill_last=False):
         if random:
             ind_all = np.random.permutation( self.length ).tolist()
         else:
             ind_all = list(range( self.length ))
         n_iteration = int(math.ceil( self.length / n_batch ))
 
-        if n_iteration*n_batch > self.length:
-            ind_all.extend( ind_all[ :n_iteration*n_batch-self.length ]  )
 
-        for i in range(n_iteration):
+        for i in range(n_iteration-1):
             data_batch = self.get_data_by_inds(ind_all[i * n_batch: (i + 1) * n_batch])
             yield self.fn_convert_data(data_batch)
 
 
+        if n_iteration*n_batch > self.length and fill_last:
+            ind_all.extend( ind_all[ :n_iteration*n_batch-self.length ]  )
+        data_batch = self.get_data_by_inds(ind_all[ (n_iteration-1) * n_batch: ])
+        yield self.fn_convert_data(data_batch)
+
 
 class Buffer(__Buffer_Base):
     def __init__(self, n, **kwargs ):
-        self.buffer = []
+        self._buffer = []
         self.n = n
         self.ind = 0
         super().__init__(**kwargs)
@@ -66,16 +69,16 @@ class Buffer(__Buffer_Base):
 
     @property
     def length(self):
-        return len(self.buffer)
+        return len(self._buffer)
 
     def get_data_by_inds(self, ind_all):
-        return [self.buffer[ind] for ind in ind_all]
+        return [self._buffer[ind] for ind in ind_all]
 
     def push(self, item):
-        if len(self.buffer) < self.n:
-            self.buffer.append(item)
+        if len(self._buffer) < self.n:
+            self._buffer.append(item)
         else:
-            self.buffer[self.ind] = item
+            self._buffer[self.ind] = item
 
         self.ind = (self.ind + 1) % self.n
 
@@ -132,10 +135,10 @@ if __name__ == '__main__':
     # for x in replaybuffer.get_batch_all(3, random=True):
     #     print(x)
 
-    x = np.arange( 10 ).reshape( (5,-1) )
-    y = np.arange( 10,30 ).reshape( (5,-1) )
+    x = np.arange( 5 ).reshape( (5,-1) )
+    y = np.arange( 5 ).reshape( (5,-1) )
     dataset = Bundle( (x,y), fn_convert_data=toXY )
     import toolsm.tools as tools
     tools.save_vars( 'd.pkl', dataset )
-    for x in dataset.get_batch_all(4, random=False):
+    for x in dataset.get_batch_all(10, random=False, fill_last=False):
         print(x)
