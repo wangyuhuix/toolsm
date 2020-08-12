@@ -4,7 +4,8 @@ from torch import tensor
 import math
 
 
-
+from torch import nn
+import torch.nn.functional as F
 
 def toTensor(a, dtype=torch.float32):
     return torch.tensor(a, device=torch.device('cuda'), dtype=dtype, requires_grad=False)
@@ -88,6 +89,206 @@ class DiagNormal(Pd):
             shape_new = sample_shape + list(self.mean.shape)
             shape_new = tuple(shape_new)
         return self.mean + self.std * self.mean.new(torch.Size(shape_new)).normal_()
+
+import numpy as np
+class FullyConnected_NN(nn.Module):
+    def __init__(self, n_units, v_initial=None, ac_fn = F.relu):
+        super().__init__()
+
+        fc_all = []
+        for ind_layer in range(len(n_units) -1):
+            fc = nn.Linear(in_features=n_units[ind_layer], out_features=n_units[ind_layer + 1])
+            setattr(self, f'fc_{ind_layer}', fc )
+            fc_all.append( fc )
+        self.fc_all = fc_all
+        self.ac_fn = ac_fn
+
+        if v_initial is not None:
+            ind_all_lastlayer = None
+            # Maybe not easy to understand, but it is right and please see my note
+            for ind_layer in range( len(fc_all) ):
+                fc = fc_all[ind_layer]
+                n = fc.out_features
+                ind_all = np.random.permutation(n)
+                # ind_all = torch.randperm(n)
+
+                ind_all_zero = ind_all[: n // 2]
+                fc.bias.data[ind_all_zero] = 0.
+
+                if ind_layer == 0:
+                    fc.weight.data[ ind_all_zero, :] = 0.
+                else:
+                    if ind_layer == len(fc_all) - 1:#final layer
+                        fc.bias.data.fill_(v_initial)
+                    else:
+                        ind_all_notzero = ind_all[n // 2:]
+                        weight_notzero = fc.weight.data[ind_all_notzero, :].detach()
+
+                    ind_all_zero = ind_all_lastlayer[n_lastlayer//2:]
+                    fc.weight.data[ :, ind_all_zero ] = 0.
+
+                    if ind_layer ==  len(fc_all) - 1:
+                        pass
+                    else:
+                        pass
+                        fc.weight.data[ind_all_notzero, : ] = weight_notzero
+
+                ind_all_lastlayer = ind_all
+                n_lastlayer = n
+
+
+    def forward(self, x):
+        for fc in self.fc_all[:-1]:
+            x = self.ac_fn( fc(x) )
+        x = self.fc_all[-1](x)
+        return x
+
+
+def tes_FullyConnected_NN():
+    fullyconnected_nn = FullyConnected_NN(n_units=[10, 20])
+    x = torch.randn( (2,10) )
+    y = fullyconnected_nn(x)
+    print(y)
+    exit()
+
+
+
+from torch.nn import Parameter, init
+import math
+
+
+def linear_multihead_op(x, weight, bias=None):
+    '''
+
+    :param x:
+    :type x:
+    :param weight:
+    :type weight:
+    :param bias:
+    :type bias:
+    :return:
+    :rtype:
+    '''
+    '''
+        n: batch count
+        f: feature count
+        h: head count
+    '''
+    if x.dim() == 2:
+        output = torch.einsum('nf,hfg->nhg', [x, weight])
+    elif x.dim() == 3:
+        output = torch.einsum('nhf,hfg->nhg', [x, weight])
+    else:
+        raise NotImplementedError
+    if bias is not None:
+        output += bias
+    return output
+
+
+class Linear_MultiHead(nn.Module):
+    def __init__(self, in_features, out_features, n_head, bias=True):
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.n_head = n_head
+
+        self.weight = Parameter(torch.Tensor(n_head, in_features, out_features))
+        if bias:
+            self.bias = Parameter(torch.Tensor(n_head, out_features))
+        else:
+            self.register_parameter('bias', None)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        if self.bias is not None:
+            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in)
+            init.uniform_(self.bias, -bound, bound)
+
+    def forward(self, x):
+        output = linear_multihead_op(x, self.weight, self.bias)
+        return output
+
+
+    def extra_repr(self):
+        return 'in_features={}, out_features={}, n_head={}, bias={}'.format(
+            self.in_features, self.out_features, self.n_head, self.bias is not None
+        )
+
+class FullyConnected_MultiHead_NN(nn.Module):
+    def __init__(self, n_units_shared, n_units_head, n_head, v_initial=None, ac_fn = F.relu):
+        super().__init__()
+        # units_n_head = units_n_head.copy()
+        n_units_head.insert(0, n_units_shared[-1])
+
+        fc_all = []
+        for ind_layer in range(len(n_units_shared) -1):
+            fc = nn.Linear(in_features=n_units_shared[ind_layer], out_features=n_units_shared[ind_layer + 1])
+            setattr(self, f'fc_{ind_layer}', fc )
+            fc_all.append( fc )
+
+        for ind_layer in range(len(n_units_head) -1):
+            fc = Linear_MultiHead(in_features=n_units_head[ind_layer], out_features=n_units_head[ind_layer + 1], n_head=n_head)
+            setattr(self, f'fc_multihead_{ind_layer}', fc )
+            fc_all.append( fc )
+
+        self.fc_all = fc_all
+        self.ac_fn = ac_fn
+
+        if v_initial is not None:
+            raise NotImplementedError
+
+
+    def forward(self, x):
+        for fc in self.fc_all[:-1]:
+            x = self.ac_fn( fc(x) )
+        x = self.fc_all[-1](x)
+        return x
+
+
+
+def tes_FullyConnected_MultiHead_NN():
+    dnn = FullyConnected_MultiHead_NN(n_units_shared=[10, 20], n_units_head=[40], n_head=3)
+    x = torch.randn( (2,10) )
+    y = dnn(x)
+    # exit()
+tes_FullyConnected_MultiHead_NN()
+
+
+
+def tes_Linear_MultiHead():
+    n_head_feature = 4
+    n_head_feature_new = 5
+    n_head = 3
+    x = torch.randn(10, n_head, n_head_feature)
+
+
+    linear_multihead = Linear_MultiHead(n_head_feature, out_features=n_head_feature_new, n_head=n_head, bias=False)
+    w = linear_multihead.weight
+    y_einsum = linear_multihead(x)
+
+    # w = torch.randn(n_head, n_head_feature, n_head_feature_new)
+    # y_einsum = linear_multihead_op(x, w)
+
+
+
+    for ind_head in range(n_head):
+        x_ = x[:, ind_head]
+        w_ = w[ind_head]
+        y_ = torch.matmul(x_, w_)
+        print(y_einsum[:, ind_head] - y_)
+
+
+    x = torch.randn( 10, n_head_feature )
+    y_einsum = linear_multihead(x)
+    for ind_head in range(n_head):
+        x_ = x
+        w_ = w[ind_head]
+        y_ = torch.matmul( x_, w_  )
+        print(  y_einsum[:, ind_head] - y_ )
+
+
 
 if __name__ == '__main__':
     from torch.distributions.multivariate_normal import MultivariateNormal

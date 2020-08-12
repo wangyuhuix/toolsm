@@ -85,8 +85,9 @@ class Buffer(__Buffer_Base):
     def merge(self, replaybuffer):
         for traj in replaybuffer.buffer:
             self.push(traj)
-
+from dotmap import DotMap
 class Bundle(__Buffer_Base):
+    # TODO: dict type
     def __init__(self, data, **kwargs):
         '''
 
@@ -99,6 +100,11 @@ class Bundle(__Buffer_Base):
         if isinstance(data, tuple) or isinstance(data, list):
             for i in range( len(data)-1 ):
                 assert data[i].shape[0] == data[i+1].shape[0]
+        elif isinstance(data, dict) or isinstance(data, DotMap):
+            values = list(data.values())
+            for i in range( len(values)-1 ):
+                assert values[i].shape[0] == values[i+1].shape[0]
+
         super().__init__(**kwargs)
 
 
@@ -107,6 +113,8 @@ class Bundle(__Buffer_Base):
         data = self._data
         if isinstance(data, tuple) or isinstance(data, list):
             return len(data[0])#Even for numpy , you can also use len() which return
+        elif isinstance(data, dict) or isinstance(data, DotMap):
+            return len( list(data.values())[0] )
         else:
             return len(data)
 
@@ -117,6 +125,10 @@ class Bundle(__Buffer_Base):
             for i in range(len(data) ):
                 result.append( data[i][ind_all] )
             result = tuple(result)
+        elif isinstance(data, dict) or isinstance(data, DotMap):
+            result = type(data)()
+            for key in data.keys():
+                result[key] = data[key][ind_all]
         else:
             result = data[ind_all]
 
@@ -137,8 +149,8 @@ if __name__ == '__main__':
 
     x = np.arange( 5 ).reshape( (5,-1) )
     y = np.arange( 5 ).reshape( (5,-1) )
-    dataset = Bundle( (x,y), fn_convert_data=toXY )
+    dataset = Bundle( DotMap(x=x,y=y) )
     import toolsm.tools as tools
     tools.save_vars( 'd.pkl', dataset )
-    for x in dataset.get_batch_all(10, random=False, fill_last=False):
+    for x in dataset.get_batch_all(2, random=False, fill_last=False):
         print(x)

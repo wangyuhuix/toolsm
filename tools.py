@@ -328,6 +328,9 @@ def json2str_file(obj, remove_brace=True, keys_exclude=[], fn_key=None):
 
 def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_value=True, remove_brace=True, remove_key=False, keys_include=None, keys_exclude=None, fn_key=None, **jsondumpkwargs):
 
+    if isinstance(obj, DotMap):
+        obj = obj.toDict()
+
     if isinstance(keys_include, list):
         obj_ori = obj
         obj = dict()

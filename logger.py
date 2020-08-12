@@ -53,6 +53,7 @@ def is_release(package_or_path):
     '''
     return os.path.exists(os.path.join(get_path_package(package_or_path), '.release'))
 
+# TODO: rename to get_logger_root_dir
 def get_logger_dir(dir_log_debug=None, dir_log_release=None, dir_indicator=None):
     if dir_indicator is not None:
         assert dir_log_release is not None
