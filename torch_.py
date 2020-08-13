@@ -144,6 +144,17 @@ class FullyConnected_NN(nn.Module):
         return x
 
 
+class InputTrainedJudger:
+    def __init__(self):
+        pass
+
+    def add(self, x, head=None):
+        pass
+
+    def is_trained(self, x, head=None):
+        pass
+
+
 def tes_FullyConnected_NN():
     fullyconnected_nn = FullyConnected_NN(n_units=[10, 20])
     x = torch.randn( (2,10) )
@@ -166,13 +177,13 @@ def linear_multihead_op(x, weight, bias=None):
     :type weight:
     :param bias:
     :type bias:
-    :return:
+    :return: [batch, head, feature]
     :rtype:
     '''
     '''
         n: batch count
-        f: feature count
         h: head count
+        f(g): (new) feature count
     '''
     if x.dim() == 2:
         output = torch.einsum('nf,hfg->nhg', [x, weight])
@@ -183,6 +194,16 @@ def linear_multihead_op(x, weight, bias=None):
     if bias is not None:
         output += bias
     return output
+
+
+# Copy from torch.init.kaiming_uniform_
+def kaiming_uniform_multihead(tensor, a=0, mode='fan_in', nonlinearity='leaky_relu'):
+    fan = init._calculate_correct_fan(tensor[0], mode)# My modify, only caculate for one head
+    gain = init.calculate_gain(nonlinearity, a)
+    std = gain / math.sqrt(fan)
+    bound = math.sqrt(3.0) * std  # Calculate uniform bounds from standard deviation
+    with torch.no_grad():
+        return tensor.uniform_(-bound, bound)
 
 
 class Linear_MultiHead(nn.Module):
@@ -200,9 +221,15 @@ class Linear_MultiHead(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        # init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        # if self.bias is not None:
+        #     fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
+        #     bound = 1 / math.sqrt(fan_in)
+        #     init.uniform_(self.bias, -bound, bound)
+
+        kaiming_uniform_multihead(self.weight, a=math.sqrt(5))
         if self.bias is not None:
-            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
+            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight[0])
             bound = 1 / math.sqrt(fan_in)
             init.uniform_(self.bias, -bound, bound)
 
@@ -230,6 +257,7 @@ class FullyConnected_MultiHead_NN(nn.Module):
 
         for ind_layer in range(len(n_units_head) -1):
             fc = Linear_MultiHead(in_features=n_units_head[ind_layer], out_features=n_units_head[ind_layer + 1], n_head=n_head)
+            # fc = nn.Linear(in_features=n_units_head[ind_layer], out_features=n_units_head[ind_layer + 1])#TOD: tmp
             setattr(self, f'fc_multihead_{ind_layer}', fc )
             fc_all.append( fc )
 
@@ -244,6 +272,7 @@ class FullyConnected_MultiHead_NN(nn.Module):
         for fc in self.fc_all[:-1]:
             x = self.ac_fn( fc(x) )
         x = self.fc_all[-1](x)
+        # x = x.unsqueeze(dim=1)#TOD: tmp
         return x
 
 
@@ -253,7 +282,7 @@ def tes_FullyConnected_MultiHead_NN():
     x = torch.randn( (2,10) )
     y = dnn(x)
     # exit()
-tes_FullyConnected_MultiHead_NN()
+# tes_FullyConnected_MultiHead_NN()
 
 
 
