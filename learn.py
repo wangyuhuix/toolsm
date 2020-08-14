@@ -39,7 +39,7 @@ class __Buffer_Base():
         return self.fn_convert_data( self.get_data_by_inds(ind_all) )
 
 
-    def get_batch_all(self, n_batch, random=False, fill_last=False):
+    def get_batch_enumerate(self, n_batch, random=False, fill_last=False):
         if random:
             ind_all = np.random.permutation( self.length ).tolist()
         else:
@@ -62,14 +62,21 @@ class Buffer(__Buffer_Base):
     '''
         Each piece of data are considered as a atom.
 
-        Save form: [ x_0, x_1, ..., x_n ]
-            x is one piece of data, it can be any type and cannot be dividied anymore.
-        Obtain form: [ x_0, x_1, ..., x_{batch_size} ]
+        Save form: [ item_0, item_1, ..., item_n ]
+        Get form:
+            `item`: [ item_0, item_1, ..., item_{batch_size} ]
+            `bundle`:
+                    Item Type:      tuple                  dict/Dotmap
+                    Return Data:   (X_batch, Y_batch )    (x=X_batch,y=Y_batch)
+
+        item is one piece of data, it can be any type.
+        item = (x,y) or dict(x=x,y=y)
     '''
-    def __init__(self, n, **kwargs ):
+    def __init__(self, n, get_form='item', **kwargs ):
         self._buffer = []
         self.n = n
         self.ind = 0
+        self.get_form = get_form
         super().__init__(**kwargs)
 
 
@@ -78,9 +85,31 @@ class Buffer(__Buffer_Base):
         return len(self._buffer)
 
     def get_data_by_inds(self, ind_all):
-        return [self._buffer[ind] for ind in ind_all]
+        result = [self._buffer[ind] for ind in ind_all] #[...item_i...]
+        if self.get_form == 'item':
+            pass
+        elif self.get_form == 'bundle':
+            if self.item_type == tuple:
+                result = zip(*result)  # ( (...x_i...), (...y_i...) )
+                result = map( lambda axis: list(axis), result )
+                result = tuple(result)
+            elif self.item_type in [dict, DotMap] :
+                keys = result[0].keys()
+                result_new = self.item_type()
+                for key in keys:
+                    result_new[key] = map( lambda item: item[key], result )
+                    result_new[key] = list( result_new[key] )
+                result = result_new
+
+        return result
 
     def push(self, item):
+        if not hasattr( self, 'item_type' ):
+            self.item_type = type(item)#TODO: debug
+        else:
+            assert self.item_type == type(item)
+
+
         if len(self._buffer) < self.n:
             self._buffer.append(item)
         else:
@@ -95,12 +124,10 @@ class Buffer(__Buffer_Base):
 from dotmap import DotMap
 class Bundle(__Buffer_Base):
     '''
-                        tuple               dict() (or Dotmap)
+        Item Type:      tuple               dict() (or Dotmap)
         Save form:      (X, Y)              dict(x=X, y=Y)
-            The capital X means that all data are bundled into an entity.
-        Obtain form:    (X_batch, Y_batch)  dict(x=X_batch, y=Y_batch)
 
-
+        The capital X means that all data are bundled into an entity.
     '''
     def __init__(self, data, **kwargs):
         '''
@@ -111,7 +138,7 @@ class Bundle(__Buffer_Base):
         :type kwargs:
         '''
         self._data = data
-        if isinstance(data, tuple) or isinstance(data, list):
+        if isinstance(data, tuple):
             for i in range( len(data)-1 ):
                 assert data[i].shape[0] == data[i+1].shape[0]
         elif isinstance(data, dict) or isinstance(data, DotMap):
@@ -125,7 +152,7 @@ class Bundle(__Buffer_Base):
     @property
     def length(self):
         data = self._data
-        if isinstance(data, tuple) or isinstance(data, list):
+        if isinstance(data, tuple):
             return len(data[0])#Even for numpy , you can also use len() which return
         elif isinstance(data, dict) or isinstance(data, DotMap):
             return len( list(data.values())[0] )
@@ -134,7 +161,7 @@ class Bundle(__Buffer_Base):
 
     def get_data_by_inds(self, ind_all):
         data = self._data
-        if isinstance(data, tuple) or isinstance(data, list):
+        if isinstance(data, tuple):
             result = []
             for i in range(len(data) ):
                 result.append( data[i][ind_all] )
@@ -153,18 +180,44 @@ class Bundle(__Buffer_Base):
         return self.fn_convert_data(self._data)
 
 
-if __name__ == '__main__':
-    # replaybuffer = Buffer(n=10)
-    # for i in range(10):
-    #     replaybuffer.push( i )
-
-    # for x in replaybuffer.get_batch_all(3, random=True):
-    #     print(x)
-
+def tes_bundle():
     x = np.arange( 5 ).reshape( (5,-1) )
     y = np.arange( 5 ).reshape( (5,-1) )
-    dataset = Bundle( DotMap(x=x,y=y) )
-    import toolsm.tools as tools
-    tools.save_vars( 'd.pkl', dataset )
-    for x in dataset.get_batch_all(2, random=False, fill_last=False):
+    bundle = Bundle( DotMap(x=x,y=y) )
+    for x in bundle.get_batch_enumerate(2, random=False, fill_last=False):
         print(x)
+
+def tes_buffer():
+    # --- original
+    buffer = Buffer(n=10)
+    for i in range(10):
+        buffer.push( i )
+    for x in buffer.get_batch_enumerate(3, random=False, fill_last=False):
+        print(x)
+
+    # --- item: tuple
+    buffer = Buffer( n=10 )
+    for i in range(10):
+        buffer.push( (i,i*10) )
+    for x in buffer.get_batch_enumerate(3, random=False, fill_last=False):
+        print(x)
+
+    print('--- item: tuple, get_form: bundle')
+    buffer = Buffer( n=10, get_form='bundle' )
+    for i in range(10):
+        buffer.push( (i,i*10) )
+    for x in buffer.get_batch_enumerate(3, random=False, fill_last=False):
+        print(x)
+
+
+    print('--- item: dict, get_form: bundle')
+    buffer = Buffer( n=10, get_form='bundle' )
+    for i in range(10):
+        buffer.push( DotMap(x=i,y=i*10) )
+    for x in buffer.get_batch_enumerate(3, random=False, fill_last=False):
+        print(x)
+
+
+if __name__ == '__main__':
+    # tes_bundle()
+    tes_buffer()
