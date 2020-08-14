@@ -14,6 +14,25 @@ def toNumpy(a):
     return a.cpu().numpy()
 
 
+# def toTensorSwiss(a, dtype=torch.float32 ):
+#     return CovertSwiss(a, fn_convert=toTensor, dtype=dtype)
+#
+#
+# def toNumpySwiss(a, dtype=torch.float32 ):
+#     return CovertSwiss(a, fn_convert=toNumpy, dtype=dtype)
+
+def CovertSwiss(a, fn_convert, **kwargs):
+    if isinstance(a, tuple ):
+        a = tuple( map( lambda x_:fn_convert(x_, **kwargs), a ) )
+    elif isinstance( a, dict ) or isinstance(a, DotMap):
+        a_values = map( lambda x_:fn_convert(x_, **kwargs), a.keys() )
+        for k,v in zip(a.keys(), a_values):
+            a[k] = v
+    else:
+        a = fn_convert(a, **kwargs)
+    return a
+
+
 class Pd(object):
     def mode(self):
         raise NotImplementedError
@@ -76,7 +95,7 @@ class DiagNormal(Pd):
     def entropy(self):
         return torch.sum(.5* self.logstd + .5 * torch.log(2.0 * math.pi * math.e), dim=-1)
 
-    def sample(self,sample_shape=None):
+    def sample(self, sample_shape=None):
         return tensor( self.rsample(sample_shape).data )
 
     def rsample(self, sample_shape=None):
@@ -269,6 +288,7 @@ class FullyConnected_MultiHead_NN(nn.Module):
 
 # This is based on Burda, Yuri, et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
 from learn import Buffer
+from dotmap import DotMap
 class InputTrainedJudger_MultiHead:
     def __init__(self, n_input, n_output, buffer_size, n_units=None, n_units_head=None, n_head=1, ac_fn_target='ELU', ac_fn='TanH'):
 
@@ -303,10 +323,12 @@ class InputTrainedJudger_MultiHead:
     def add(self, x, head=None):
         if self.n_head == 1:
             assert head is None
-            self.buffer.push(x)
+            y = self.dnn_target(x).detach()
+            self.buffer.push( DotMap(x=x, y=y) )
         else:
             assert head is not None
-            self.buffer.push( (x, head) )
+            y = self.dnn_target(x).detach()[ range( len(x) ), head ]
+            self.buffer.push(DotMap(x=x, y=y))
 
 
 

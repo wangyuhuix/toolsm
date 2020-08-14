@@ -18,8 +18,9 @@ def fn_null(data):
     return data
 
 class __Buffer_Base():
-    def __init__(self, fn_convert_data=fn_null):
-        self.fn_convert_data = fn_convert_data
+    def __init__(self, fn_convert_push=fn_null, fn_convert_get=fn_null):
+        self.fn_convert_push = fn_convert_push
+        self.fn_convert_get = fn_convert_get
 
 
     def __len__(self):
@@ -36,7 +37,7 @@ class __Buffer_Base():
         if not self.can_sample(n_sample):
             warn( f'Buffer contains {self.length}, while sample size is {n_sample} and has been adjusted to be {self.length}' )
         ind_all = np.random.choice(self.length, min( self.length, n_sample ), replace=False)
-        return self.fn_convert_data( self.get_data_by_inds(ind_all) )
+        return self.fn_convert_get(self.get_data_by_inds(ind_all))
 
 
     def get_batch_enumerate(self, n_batch, random=False, fill_last=False):
@@ -49,13 +50,13 @@ class __Buffer_Base():
 
         for i in range(n_iteration-1):
             data_batch = self.get_data_by_inds(ind_all[i * n_batch: (i + 1) * n_batch])
-            yield self.fn_convert_data(data_batch)
+            yield self.fn_convert_get(data_batch)
 
 
         if n_iteration*n_batch > self.length and fill_last:
             ind_all.extend( ind_all[ :n_iteration*n_batch-self.length ]  )
         data_batch = self.get_data_by_inds(ind_all[ (n_iteration-1) * n_batch: ])
-        yield self.fn_convert_data(data_batch)
+        yield self.fn_convert_get(data_batch)
 
 
 class Buffer(__Buffer_Base):
@@ -92,36 +93,63 @@ class Buffer(__Buffer_Base):
             if self.item_type == tuple:
                 result = zip(*result)  # ( (...x_i...), (...y_i...) )
                 result = map( lambda axis: list(axis), result )
-                result = tuple(result)
+                result = tuple(result) # ( [...x_i...], [...y_i...] )
             elif self.item_type in [dict, DotMap] :
                 keys = result[0].keys()
                 result_new = self.item_type()
                 for key in keys:
-                    result_new[key] = map( lambda item: item[key], result )
-                    result_new[key] = list( result_new[key] )
+                    result_new[key] = map( lambda item: item[key], result ) # dict( x=(...x_i...), y=(...y_i...) )
+                    result_new[key] = list( result_new[key] ) # dict( x=[...x_i...],y=[...y_i...] )
                 result = result_new
-
         return result
 
     def push(self, item):
+        item = self.fn_convert_push( item )
         if not hasattr( self, 'item_type' ):
-            self.item_type = type(item)#TODO: debug
+            self.item_type = type(item) # TODO: debug
         else:
             assert self.item_type == type(item)
 
 
-        if len(self._buffer) < self.n:
+        if self.n is None or len(self._buffer) < self.n:
             self._buffer.append(item)
         else:
             self._buffer[self.ind] = item
 
-        self.ind = (self.ind + 1) % self.n
+        if self.n is not None:
+            self.ind = (self.ind + 1) % self.n
 
     def merge(self, replaybuffer):
         for traj in replaybuffer.buffer:
             self.push(traj)
 
+
+def bundle_cat(buffer, item, n, ind):
+    # --- Reshape item
+    if isinstance(item, torch.Tensor):
+        item = item.unsqueeze(dim=0)
+    elif isinstance(item, np.ndarray):
+        item = np.expand_dims(item, axis=0)
+    else:
+        raise NotImplementedError
+
+    # --- Push item
+    if buffer is None:
+        buffer = item
+    elif n is None or len(buffer) < n:
+        if isinstance(item, torch.Tensor):
+            buffer = torch.cat((buffer, item), dim=0)
+        elif isinstance(item, np.ndarray):
+            buffer = np.concatenate((buffer, item), axis=0)
+        else:
+            raise NotImplementedError
+    else:
+        buffer[ind] = item
+
+    return buffer
+
 from dotmap import DotMap
+from itertools import starmap
 class Bundle(__Buffer_Base):
     '''
         Item Type:      tuple               dict() (or Dotmap)
@@ -129,29 +157,70 @@ class Bundle(__Buffer_Base):
 
         The capital X means that all data are bundled into an entity.
     '''
-    def __init__(self, data, **kwargs):
+    def __init__(self, n, **kwargs):
         '''
 
-        :param data: e.g,(X,Y)
-        :type data:
+        :param n: e.g,(X,Y)
+        :type n:
         :param kwargs:
         :type kwargs:
         '''
-        self._data = data
-        if isinstance(data, tuple):
-            for i in range( len(data)-1 ):
-                assert data[i].shape[0] == data[i+1].shape[0]
-        elif isinstance(data, dict) or isinstance(data, DotMap):
-            values = list(data.values())
+        self.n = n
+        self.ind = 0
+        self._buffer = None
+        super().__init__(**kwargs)
+
+
+    def set_buffer(self, buffer):
+        self._buffer = buffer
+        if isinstance(buffer, tuple):
+            for i in range(len(buffer)-1):
+                assert buffer[i].shape[0] == buffer[i + 1].shape[0]
+        elif isinstance(buffer, dict) or isinstance(buffer, DotMap):
+            values = list(buffer.values())
             for i in range( len(values)-1 ):
                 assert values[i].shape[0] == values[i+1].shape[0]
 
-        super().__init__(**kwargs)
+        if self.n is not None:
+            self.n = max( self.n, len(buffer) )
+
+
+    def push(self, item):
+        item = self.fn_convert_push(item)
+
+        if isinstance(item, tuple):
+            buffer_new = starmap(
+                lambda buffer_sub, item_sub: bundle_cat( buffer_sub, item_sub, n=self.n, ind=self.ind ),
+                zip( self._buffer, item )
+            )
+            self._buffer = tuple(buffer_new)
+
+        elif isinstance(item, dict) or isinstance(item, DotMap):
+            values = starmap(
+                lambda buffer_sub, item_sub: bundle_cat( buffer_sub, item_sub, n=self.n, ind=self.ind ),
+                zip( self._buffer.values(), item.values() )
+            )
+            if self._buffer is None:
+                self._buffer = type(item)()
+            else:
+                # Make sure the order are exactly the same
+                for key_1,key_2 in zip( self._buffer.keys(), item.keys() ):
+                    assert key_1 == key_2
+
+            for k, v in zip(item.keys(), values):
+                self._buffer[k] = v
+
+
+        if self.n is not None:
+            self.ind = (self.ind + 1) % self.n
 
 
     @property
     def length(self):
-        data = self._data
+        if self._buffer is None:
+            return 0
+
+        data = self._buffer
         if isinstance(data, tuple):
             return len(data[0])#Even for numpy , you can also use len() which return
         elif isinstance(data, dict) or isinstance(data, DotMap):
@@ -160,7 +229,7 @@ class Bundle(__Buffer_Base):
             return len(data)
 
     def get_data_by_inds(self, ind_all):
-        data = self._data
+        data = self._buffer
         if isinstance(data, tuple):
             result = []
             for i in range(len(data) ):
@@ -177,13 +246,17 @@ class Bundle(__Buffer_Base):
 
     @property
     def all(self):
-        return self.fn_convert_data(self._data)
+        return self.fn_convert_get(self._buffer)
 
 
 def tes_bundle():
-    x = np.arange( 5 ).reshape( (5,-1) )
-    y = np.arange( 5 ).reshape( (5,-1) )
-    bundle = Bundle( DotMap(x=x,y=y) )
+    x = np.arange( 0, 5, 0.5 ).reshape( (5,-1) )
+    y = np.arange( 0, 5, 0.5 ).reshape( (5,-1) )
+    bundle = Bundle( n=3 )
+    bundle.set_buffer( DotMap(x=x, y=y) )
+    bundle.n = 30
+    for i in range(100,120):
+        bundle.push( dict( x=np.array([i, i+1]), y = np.array([i+2, i+3]) ) )
     for x in bundle.get_batch_enumerate(2, random=False, fill_last=False):
         print(x)
 
@@ -219,5 +292,5 @@ def tes_buffer():
 
 
 if __name__ == '__main__':
-    # tes_bundle()
-    tes_buffer()
+    tes_bundle()
+    # tes_buffer()
