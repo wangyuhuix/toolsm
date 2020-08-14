@@ -59,12 +59,18 @@ class __Buffer_Base():
 
 
 class Buffer(__Buffer_Base):
+    '''
+        Each piece of data are considered as a atom.
+
+        Save form: [ x_0, x_1, ..., x_n ]
+            x is one piece of data, it can be any type and cannot be dividied anymore.
+        Obtain form: [ x_0, x_1, ..., x_{batch_size} ]
+    '''
     def __init__(self, n, **kwargs ):
         self._buffer = []
         self.n = n
         self.ind = 0
         super().__init__(**kwargs)
-
 
 
     @property
@@ -85,9 +91,17 @@ class Buffer(__Buffer_Base):
     def merge(self, replaybuffer):
         for traj in replaybuffer.buffer:
             self.push(traj)
+
 from dotmap import DotMap
 class Bundle(__Buffer_Base):
-    # TODO: dict type
+    '''
+                        tuple               dict() (or Dotmap)
+        Save form:      (X, Y)              dict(x=X, y=Y)
+            The capital X means that all data are bundled into an entity.
+        Obtain form:    (X_batch, Y_batch)  dict(x=X_batch, y=Y_batch)
+
+
+    '''
     def __init__(self, data, **kwargs):
         '''
 

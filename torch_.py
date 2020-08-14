@@ -144,15 +144,6 @@ class FullyConnected_NN(nn.Module):
         return x
 
 
-class InputTrainedJudger:
-    def __init__(self):
-        pass
-
-    def add(self, x, head=None):
-        pass
-
-    def is_trained(self, x, head=None):
-        pass
 
 
 def tes_FullyConnected_NN():
@@ -275,6 +266,57 @@ class FullyConnected_MultiHead_NN(nn.Module):
         # x = x.unsqueeze(dim=1)#TOD: tmp
         return x
 
+
+# This is based on Burda, Yuri, et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
+from learn import Buffer
+class InputTrainedJudger_MultiHead:
+    def __init__(self, n_input, n_output, buffer_size, n_units=None, n_units_head=None, n_head=1, ac_fn_target='ELU', ac_fn='TanH'):
+
+        if n_units is None:
+            n_units = []
+
+        if n_head == 1:
+            assert n_units_head is None or len(n_units_head) == 0
+            kwargs = dict(
+                n_units_=[n_input] + n_units + [n_output],
+            )
+            dnn_target = FullyConnected_NN( **kwargs, ac_fn=getattr(nn, ac_fn_target )() )
+            dnn = FullyConnected_NN( **kwargs, ac_fn=getattr(nn, ac_fn )() )
+        else:
+            if n_units_head is None:
+                n_units_head = []
+
+            kwargs = dict(
+                n_units_shared=[n_input] + n_units,
+                n_units_head=n_units_head + [n_output],
+                n_head=n_head
+            )
+            dnn_target = FullyConnected_MultiHead_NN( **kwargs, ac_fn=getattr(nn, ac_fn_target )() )
+            dnn = FullyConnected_MultiHead_NN( **kwargs, ac_fn=getattr(nn, ac_fn )() )
+
+        self.dnn = dnn
+        self.dnn_target = dnn_target
+        self.n_head = n_head
+
+        self.buffer = Buffer( n=buffer_size )
+
+    def add(self, x, head=None):
+        if self.n_head == 1:
+            assert head is None
+            self.buffer.push(x)
+        else:
+            assert head is not None
+            self.buffer.push( (x, head) )
+
+
+
+    def is_trained(self, x, head=None):
+        pass
+
+    def cuda(self):
+        self.dnn_target.cuda()
+        self.dnn.cuda()
+        pass
 
 
 def tes_FullyConnected_MultiHead_NN():
