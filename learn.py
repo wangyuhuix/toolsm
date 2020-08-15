@@ -73,9 +73,11 @@ class Buffer(__Buffer_Base):
         item is one piece of data, it can be any type.
         item = (x,y) or dict(x=x,y=y)
     '''
-    def __init__(self, n, get_form='item', **kwargs ):
+    def __init__(self, n=None, get_form='item', **kwargs ):
         self._buffer = []
         self.n = n
+        if n is None:
+            warn('Buffer size not limited')
         self.ind = 0
         self.get_form = get_form
         super().__init__(**kwargs)
@@ -127,9 +129,11 @@ class Buffer(__Buffer_Base):
 def bundle_cat(buffer, item, n, ind):
     # --- Reshape item
     if isinstance(item, torch.Tensor):
-        item = item.unsqueeze(dim=0)
+        if item.dim() < buffer.dim():
+            item = item.unsqueeze(dim=0)
     elif isinstance(item, np.ndarray):
-        item = np.expand_dims(item, axis=0)
+        if item.ndim < buffer.ndim:
+            item = np.expand_dims(item, axis=0)
     else:
         raise NotImplementedError
 
@@ -157,7 +161,7 @@ class Bundle(__Buffer_Base):
 
         The capital X means that all data are bundled into an entity.
     '''
-    def __init__(self, n, **kwargs):
+    def __init__(self, n=None, _buffer=None, **kwargs):
         '''
 
         :param n: e.g,(X,Y)
@@ -166,13 +170,18 @@ class Bundle(__Buffer_Base):
         :type kwargs:
         '''
         self.n = n
+        if n is None:
+            warn('Bundle size not limited')
         self.ind = 0
-        self._buffer = None
+        self.set_buffer( _buffer )
         super().__init__(**kwargs)
 
 
     def set_buffer(self, buffer):
         self._buffer = buffer
+        if self.n is not None:
+            self.n = max( self.n, self.length )
+
         if isinstance(buffer, tuple):
             for i in range(len(buffer)-1):
                 assert buffer[i].shape[0] == buffer[i + 1].shape[0]
@@ -180,10 +189,6 @@ class Bundle(__Buffer_Base):
             values = list(buffer.values())
             for i in range( len(values)-1 ):
                 assert values[i].shape[0] == values[i+1].shape[0]
-
-        if self.n is not None:
-            self.n = max( self.n, len(buffer) )
-
 
     def push(self, item):
         item = self.fn_convert_push(item)

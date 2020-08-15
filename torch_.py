@@ -351,11 +351,16 @@ class FullyConnected_MultiHead_NN(nn.Module):
             raise NotImplementedError
 
 
-    def forward(self, x):
+    def forward(self, x, head=None):
+        input_ = x
         for fc in self.fc_all[:-1]:
             x = self.ac_fn( fc(x) )
         x = self.fc_all[-1](x)
-        # x = x.unsqueeze(dim=1)#TOD: tmp
+        if head is not None:
+            if input_.dim() == 1:
+                x = x[head]
+            elif input_.dim() == 2:
+                x = x[ torch.arange( 0, len(input_), dtype=torch.long ), head ]
         return x
 
 def tes_FullyConnected_MultiHead_NN():
@@ -368,11 +373,19 @@ def tes_FullyConnected_MultiHead_NN():
     # exit()
 # tes_FullyConnected_MultiHead_NN()
 
+
+
+
+
+
+
+
 # This is based on Burda, Yuri, et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
-from learn import Buffer, Bundle
+from .learn import Buffer, Bundle
 from dotmap import DotMap
+from torch import optim
 class InputTrainedJudger_MultiHead():
-    def __init__(self, n_input, n_output, threshold, buffer_size=None, n_units=None, n_units_head=None, n_head=None, ac_fn_target='ELU', ac_fn='TanH'):
+    def __init__(self, n_input, n_output, threshold_kwargs, train_kwargs, buffer_size=None, n_units=None, n_units_head=None, n_head=None, ac_fn_target='ELU', ac_fn='TanH'):
 
         if n_units is None:
             n_units = []
@@ -399,9 +412,22 @@ class InputTrainedJudger_MultiHead():
         self.dnn = dnn
         self.dnn_target = dnn_target
         self.n_head = n_head
-        self.threshold = threshold
+        self.threshold_kwargs = threshold_kwargs
+        self.threshold_judger = 0
 
         self.buffer = Bundle( n=buffer_size )
+
+        self.optimizer = optim.Adam(self.NN.parameters(), lr=1e-3)
+
+        self.train_kwargs = train_kwargs
+
+        self.loss_fn = nn.MSELoss()
+
+        def loss_fn_judger(input, target):
+            return (input - target).abs().mean(dim=-1, keepdim=True)
+
+        self.loss_fn_judger = loss_fn_judger
+
 
     def add(self, x, head=None):
         if self.n_head is None:
@@ -410,29 +436,69 @@ class InputTrainedJudger_MultiHead():
             self.buffer.push( DotMap(x=x, y=y) )
         else:
             assert head is not None
-            y = self.dnn_target(x).detach()[ head ]
+            y = self.dnn_target(x, head).detach()
             self.buffer.push( DotMap(x=x, head=head, y=y))
 
+
+
     def train(self):
-        pass
         # TODO: judge threshold by train loss
+
+        kwargs = self.train_kwargs
+
+        if 'loss_threshold' in kwargs:
+            loss_threshold = kwargs['loss_threshold']
+        else:
+            loss_threshold = None
+
+        for k in range( kwargs['n_iteration'] ):
+            loss_sum = 0.
+
+            for ind_batch, batch in enumerate( self.buffer.get_batch_enumerate( kwargs['n_batch'], random=True, fill_last=False)):
+                if self.n_head is None:
+                    model_output = self.dnn( batch.x )
+                else:
+                    model_output = self.dnn(batch.x, batch.head)
+
+                loss = self.loss_fn(input=model_output, target=batch.y)
+                loss_sum += loss.item()
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+            loss_final = loss_sum / (ind_batch + 1)
+
+            if loss_threshold is not None:
+                if loss_final <= loss_threshold:
+                    break
+
+        threshold_kwargs = self.threshold_kwargs
+        with torch.no_grad():
+            loss_all = []
+            for ind_batch, batch in enumerate(
+                    self.buffer.get_batch_enumerate(kwargs['n_batch'], random=False, fill_last=False)):
+                if self.n_head is None:
+                    model_output = self.dnn(batch.x)
+                else:
+                    model_output = self.dnn(batch.x, batch.head)
+
+                loss = self.loss_fn_judger( model_output, batch.y )
+                loss_all.append(loss)
+
+            loss_all = torch.stack()
 
     def is_trained(self, x, head=None):
         if self.n_head is None:
             assert head is None
             y_target = self.dnn_target(x)
+            y = self.dnn(x)
         else:
             assert head is not None
-            y_target = self.dnn_target(x)
-            if x.dim() == 1:
-                y_target = y_target[ head ]
-            elif x.dim() == 2:
-                y_target = y_target[ torch.range( 0, len(x)-1 ), head ]#TODO debug
-            else:
-                raise Exception()
-        y = self.dnn(x)
+            y_target = self.dnn_target(x, head)
+            y = self.dnn(x, head)
+
         l1loss_element = (y - y_target).abs().mean(dim=-1, keepdim=True)
-        return l1loss_element <= self.threshold
+        return l1loss_element <= self.threshold_judger
 
 
     def cuda(self):
