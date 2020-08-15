@@ -319,7 +319,7 @@ def tes_Linear_MultiHead():
     #     y_ = torch.matmul(x_, w_)
     #     print(y_einsum[:, ind_head] - y_)
 
-tes_Linear_MultiHead()
+# tes_Linear_MultiHead()
 
 class FullyConnected_MultiHead_NN(nn.Module):
     def __init__(self, n_units_shared, n_units_head, n_head, v_initial=None, ac_fn = F.relu):
@@ -372,12 +372,12 @@ def tes_FullyConnected_MultiHead_NN():
 from learn import Buffer, Bundle
 from dotmap import DotMap
 class InputTrainedJudger_MultiHead():
-    def __init__(self, n_input, n_output, buffer_size, n_units=None, n_units_head=None, n_head=1, ac_fn_target='ELU', ac_fn='TanH'):
+    def __init__(self, n_input, n_output, threshold, buffer_size=None, n_units=None, n_units_head=None, n_head=None, ac_fn_target='ELU', ac_fn='TanH'):
 
         if n_units is None:
             n_units = []
 
-        if n_head == 1:
+        if n_head is None:
             assert n_units_head is None or len(n_units_head) == 0
             kwargs = dict(
                 n_units_=[n_input] + n_units + [n_output],
@@ -399,23 +399,41 @@ class InputTrainedJudger_MultiHead():
         self.dnn = dnn
         self.dnn_target = dnn_target
         self.n_head = n_head
+        self.threshold = threshold
 
         self.buffer = Bundle( n=buffer_size )
 
     def add(self, x, head=None):
-        if self.n_head == 1:
+        if self.n_head is None:
             assert head is None
             y = self.dnn_target(x).detach()
             self.buffer.push( DotMap(x=x, y=y) )
         else:
             assert head is not None
             y = self.dnn_target(x).detach()[ head ]
-            self.buffer.push(DotMap(x=x, head=head, y=y))
+            self.buffer.push( DotMap(x=x, head=head, y=y))
 
-
+    def train(self):
+        pass
+        # TODO: judge threshold by train loss
 
     def is_trained(self, x, head=None):
-        pass
+        if self.n_head is None:
+            assert head is None
+            y_target = self.dnn_target(x)
+        else:
+            assert head is not None
+            y_target = self.dnn_target(x)
+            if x.dim() == 1:
+                y_target = y_target[ head ]
+            elif x.dim() == 2:
+                y_target = y_target[ torch.range( 0, len(x)-1 ), head ]#TODO debug
+            else:
+                raise Exception()
+        y = self.dnn(x)
+        l1loss_element = (y - y_target).abs().mean(dim=-1, keepdim=True)
+        return l1loss_element <= self.threshold
+
 
     def cuda(self):
         self.dnn_target.cuda()
