@@ -178,7 +178,7 @@ from torch.nn import Parameter, init
 import math
 
 
-def linear_multihead_op(x, weight, bias=None):
+def linear_multihead_op(x, weight, bias, n_head_in):
     '''
 
     :param x:
@@ -195,12 +195,21 @@ def linear_multihead_op(x, weight, bias=None):
         h: head count
         f(g): (new) feature count
     '''
-    if x.dim() == 2:
-        output = torch.einsum('nf,hfg->nhg', [x, weight])
-    elif x.dim() == 3:
-        output = torch.einsum('nhf,hfg->nhg', [x, weight])
+    if n_head_in is None:
+        if x.dim() == 1:
+            output = torch.einsum('f,hfg->hg', [x, weight])
+        elif x.dim() == 2:
+            output = torch.einsum('nf,hfg->nhg', [x, weight])
+        else:
+            raise NotImplementedError
     else:
-        raise NotImplementedError
+        if x.dim() == 2:
+            output = torch.einsum('hf,hfg->hg', [x, weight])
+        elif x.dim() == 3:
+            output = torch.einsum('nhf,hfg->nhg', [x, weight])
+        else:
+            raise NotImplementedError
+
     if bias is not None:
         output += bias
     return output
@@ -217,15 +226,16 @@ def kaiming_uniform_multihead(tensor, a=0, mode='fan_in', nonlinearity='leaky_re
 
 
 class Linear_MultiHead(nn.Module):
-    def __init__(self, in_features, out_features, n_head, bias=True):
+    def __init__(self, in_features, out_features, n_head_in, n_head_out, bias=True):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.n_head = n_head
+        self.n_head_in = n_head_in
+        self.n_head_out = n_head_out
 
-        self.weight = Parameter(torch.Tensor(n_head, in_features, out_features))
+        self.weight = Parameter(torch.Tensor(n_head_out, in_features, out_features))
         if bias:
-            self.bias = Parameter(torch.Tensor(n_head, out_features))
+            self.bias = Parameter(torch.Tensor(n_head_out, out_features))
         else:
             self.register_parameter('bias', None)
         self.reset_parameters()
@@ -244,7 +254,7 @@ class Linear_MultiHead(nn.Module):
             init.uniform_(self.bias, -bound, bound)
 
     def forward(self, x):
-        output = linear_multihead_op(x, self.weight, self.bias)
+        output = linear_multihead_op(x, self.weight, self.bias, self.n_head_in)
         return output
 
 
@@ -252,6 +262,64 @@ class Linear_MultiHead(nn.Module):
         return 'in_features={}, out_features={}, n_head={}, bias={}'.format(
             self.in_features, self.out_features, self.n_head, self.bias is not None
         )
+
+def tes_Linear_MultiHead():
+    n_head_feature = 4
+    n_head_feature_new = 5
+    n_head = 3
+    x = torch.randn(10, n_head, n_head_feature)
+
+    # w = torch.randn(n_head, n_head_feature, n_head_feature_new)
+    # y_einsum = linear_multihead_op(x, w)
+
+    linear_multihead = Linear_MultiHead(n_head_feature, out_features=n_head_feature_new, n_head_in=n_head, n_head_out=n_head,
+                                        bias=False)
+    w = linear_multihead.weight
+    y_einsum = linear_multihead(x)
+
+    for ind_head in range(n_head):
+        x_ = x[:, ind_head]
+        w_ = w[ind_head]
+        y_ = torch.matmul(x_, w_)
+        print(y_einsum[:, ind_head] - y_)
+
+    for ind in range( len(x) ):
+        x_ = x[ind]
+        y_ = linear_multihead( x_ )
+        print( y_einsum[ind] - y_  )
+
+
+    print( f'-------n_head_in=None' )
+
+    x = torch.randn(10, n_head_feature)
+    linear_multihead = Linear_MultiHead(n_head_feature, out_features=n_head_feature_new, n_head_in=None,
+                                        n_head_out=n_head,
+                                        bias=False)
+    w = linear_multihead.weight
+    y_einsum = linear_multihead(x)
+
+
+    for ind in range(len(x)):
+        x_ = x[ind]
+        y_ = linear_multihead( x_ )
+        # print( y_einsum[ind] - y_ )
+        for ind_head in range(n_head):
+            # x_head = x_[ ind_head ]
+            w_head = w[ind_head]
+            y_ = torch.matmul(x_, w_head)
+            print(y_einsum[ind, ind_head] - y_)
+
+
+
+            # x = torch.randn(10, n_head_feature)
+    # y_einsum = linear_multihead(x)
+    # for ind_head in range(n_head):
+    #     x_ = x
+    #     w_ = w[ind_head]
+    #     y_ = torch.matmul(x_, w_)
+    #     print(y_einsum[:, ind_head] - y_)
+
+tes_Linear_MultiHead()
 
 class FullyConnected_MultiHead_NN(nn.Module):
     def __init__(self, n_units_shared, n_units_head, n_head, v_initial=None, ac_fn = F.relu):
@@ -266,7 +334,12 @@ class FullyConnected_MultiHead_NN(nn.Module):
             fc_all.append( fc )
 
         for ind_layer in range(len(n_units_head) -1):
-            fc = Linear_MultiHead(in_features=n_units_head[ind_layer], out_features=n_units_head[ind_layer + 1], n_head=n_head)
+            if ind_layer == 0:
+                n_head_in = None
+            else:
+                n_head_in = n_head
+
+            fc = Linear_MultiHead(in_features=n_units_head[ind_layer], out_features=n_units_head[ind_layer + 1], n_head_in=n_head_in, n_head_out=n_head)
             # fc = nn.Linear(in_features=n_units_head[ind_layer], out_features=n_units_head[ind_layer + 1])#TOD: tmp
             setattr(self, f'fc_multihead_{ind_layer}', fc )
             fc_all.append( fc )
@@ -285,11 +358,20 @@ class FullyConnected_MultiHead_NN(nn.Module):
         # x = x.unsqueeze(dim=1)#TOD: tmp
         return x
 
+def tes_FullyConnected_MultiHead_NN():
+    dnn = FullyConnected_MultiHead_NN(n_units_shared=[10, 20], n_units_head=[40], n_head=3)
+    x = torch.randn((2, 10))
+    y = dnn(x)
+    for n in range( len(x) ):
+        y_n = dnn( x[n] )
+        print( y[n]-y_n )
+    # exit()
+# tes_FullyConnected_MultiHead_NN()
 
 # This is based on Burda, Yuri, et al. "Exploration by Random Network Distillation." arXiv preprint arXiv:1810.12894 (2018).
-from learn import Buffer
+from learn import Buffer, Bundle
 from dotmap import DotMap
-class InputTrainedJudger_MultiHead:
+class InputTrainedJudger_MultiHead():
     def __init__(self, n_input, n_output, buffer_size, n_units=None, n_units_head=None, n_head=1, ac_fn_target='ELU', ac_fn='TanH'):
 
         if n_units is None:
@@ -318,7 +400,7 @@ class InputTrainedJudger_MultiHead:
         self.dnn_target = dnn_target
         self.n_head = n_head
 
-        self.buffer = Buffer( n=buffer_size )
+        self.buffer = Bundle( n=buffer_size )
 
     def add(self, x, head=None):
         if self.n_head == 1:
@@ -327,8 +409,8 @@ class InputTrainedJudger_MultiHead:
             self.buffer.push( DotMap(x=x, y=y) )
         else:
             assert head is not None
-            y = self.dnn_target(x).detach()[ range( len(x) ), head ]
-            self.buffer.push(DotMap(x=x, y=y))
+            y = self.dnn_target(x).detach()[ head ]
+            self.buffer.push(DotMap(x=x, head=head, y=y))
 
 
 
@@ -341,92 +423,54 @@ class InputTrainedJudger_MultiHead:
         pass
 
 
-def tes_FullyConnected_MultiHead_NN():
-    dnn = FullyConnected_MultiHead_NN(n_units_shared=[10, 20], n_units_head=[40], n_head=3)
-    x = torch.randn( (2,10) )
-    y = dnn(x)
-    # exit()
-# tes_FullyConnected_MultiHead_NN()
-
-
-
-def tes_Linear_MultiHead():
-    n_head_feature = 4
-    n_head_feature_new = 5
-    n_head = 3
-    x = torch.randn(10, n_head, n_head_feature)
-
-
-    linear_multihead = Linear_MultiHead(n_head_feature, out_features=n_head_feature_new, n_head=n_head, bias=False)
-    w = linear_multihead.weight
-    y_einsum = linear_multihead(x)
-
-    # w = torch.randn(n_head, n_head_feature, n_head_feature_new)
-    # y_einsum = linear_multihead_op(x, w)
-
-
-
-    for ind_head in range(n_head):
-        x_ = x[:, ind_head]
-        w_ = w[ind_head]
-        y_ = torch.matmul(x_, w_)
-        print(y_einsum[:, ind_head] - y_)
-
-
-    x = torch.randn( 10, n_head_feature )
-    y_einsum = linear_multihead(x)
-    for ind_head in range(n_head):
-        x_ = x
-        w_ = w[ind_head]
-        y_ = torch.matmul( x_, w_  )
-        print(  y_einsum[:, ind_head] - y_ )
 
 
 
 if __name__ == '__main__':
+    pass
     from torch.distributions.multivariate_normal import MultivariateNormal
 
 
     #-- test sample
-    mu = tensor([0.,0.])
-    sigma_v = tensor([1.,36.])
+    # mu = tensor([0.,0.])
+    # sigma_v = tensor([1.,36.])
+    #
+    # dist = DiagNormal( mean=mu, var=sigma_v )
+    # samples = dist.sample(2000)
+    # import matplotlib.pyplot as plt
+    # plt.scatter(samples[:,0], samples[:,1] )
+    # plt.show()
+    # exit()
 
-    dist = DiagNormal( mean=mu, var=sigma_v )
-    samples = dist.sample(2000)
-    import matplotlib.pyplot as plt
-    plt.scatter(samples[:,0], samples[:,1] )
-    plt.show()
-    exit()
 
-
-    mu = tensor([[1.0,2.0],[2.0,3.0]])
-    sigma_v = tensor([[1.0,2.0],[2.0,3.0]])
-    x = tensor([[0., 0], [0., 0]])
-    sigma = torch.stack( list( map( lambda v: v.diag(), torch.unbind(sigma_v,0) )  ) )
-
-    probs = DiagNormal(mu, var=sigma_v).log_prob(x)
-    print(probs)
-
-    probs = MultivariateNormal(mu, covariance_matrix=sigma).log_prob(x)
-    print(probs)
-
-    probs = DiagNormal(mu, logvar=sigma_v).log_prob(x)
-    print(probs)
-
-    sigma = torch.stack(list(map(lambda v: v.diag(), torch.unbind(sigma_v.exp(), 0))))
-    probs = MultivariateNormal(mu, covariance_matrix=sigma).log_prob(x)
-    print(probs)
-
-    probs = DiagNormal(mu, std=sigma_v).log_prob(x)
-    print(probs)
-    sigma = torch.stack(list(map(lambda v: v.diag(), torch.unbind(sigma_v, 0))))
-    probs = MultivariateNormal(mu, scale_tril=sigma).log_prob(x)
-    print(probs)
-
-    #--- test single distribution, multi x
-    mu = tensor([1.0,2.0])
-    sigma_v = tensor([1.0,2.0])
-    x = tensor([[0., 0], [1., 1]])
-    print( DiagNormal( mean=mu, var=sigma_v ).log_prob(x)  )
-    print( MultivariateNormal( loc=mu, covariance_matrix=sigma_v.diag() ).log_prob(x)  )
+    # mu = tensor([[1.0,2.0],[2.0,3.0]])
+    # sigma_v = tensor([[1.0,2.0],[2.0,3.0]])
+    # x = tensor([[0., 0], [0., 0]])
+    # sigma = torch.stack( list( map( lambda v: v.diag(), torch.unbind(sigma_v,0) )  ) )
+    #
+    # probs = DiagNormal(mu, var=sigma_v).log_prob(x)
+    # print(probs)
+    #
+    # probs = MultivariateNormal(mu, covariance_matrix=sigma).log_prob(x)
+    # print(probs)
+    #
+    # probs = DiagNormal(mu, logvar=sigma_v).log_prob(x)
+    # print(probs)
+    #
+    # sigma = torch.stack(list(map(lambda v: v.diag(), torch.unbind(sigma_v.exp(), 0))))
+    # probs = MultivariateNormal(mu, covariance_matrix=sigma).log_prob(x)
+    # print(probs)
+    #
+    # probs = DiagNormal(mu, std=sigma_v).log_prob(x)
+    # print(probs)
+    # sigma = torch.stack(list(map(lambda v: v.diag(), torch.unbind(sigma_v, 0))))
+    # probs = MultivariateNormal(mu, scale_tril=sigma).log_prob(x)
+    # print(probs)
+    #
+    # #--- test single distribution, multi x
+    # mu = tensor([1.0,2.0])
+    # sigma_v = tensor([1.0,2.0])
+    # x = tensor([[0., 0], [1., 1]])
+    # print( DiagNormal( mean=mu, var=sigma_v ).log_prob(x)  )
+    # print( MultivariateNormal( loc=mu, covariance_matrix=sigma_v.diag() ).log_prob(x)  )
 

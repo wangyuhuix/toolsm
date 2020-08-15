@@ -213,7 +213,7 @@ class Bundle(__Buffer_Base):
 
         if self.n is not None:
             self.ind = (self.ind + 1) % self.n
-
+        pass
 
     @property
     def length(self):
