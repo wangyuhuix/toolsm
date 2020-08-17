@@ -41,10 +41,16 @@ class __Buffer_Base():
 
 
     def get_batch_enumerate(self, n_batch, random=False, fill_last=False):
+        if n_batch is None:
+            n_batch = self.length
+            random = False # It is not necessary to randomize when batch size=buffer size
+
         if random:
             ind_all = np.random.permutation( self.length ).tolist()
         else:
             ind_all = list(range( self.length ))
+
+
         n_iteration = int(math.ceil( self.length / n_batch ))
 
 
@@ -126,13 +132,13 @@ class Buffer(__Buffer_Base):
             self.push(traj)
 
 
-def bundle_cat(buffer, item, n, ind):
+def bundle_cat(buffer, item, n, ind, is_batch):
     # --- Reshape item
     if isinstance(item, torch.Tensor):
-        if item.dim() < buffer.dim():
+        if not is_batch: #item.dim() < buffer.dim():
             item = item.unsqueeze(dim=0)
     elif isinstance(item, np.ndarray):
-        if item.ndim < buffer.ndim:
+        if not is_batch: # item.ndim < buffer.ndim:
             item = np.expand_dims(item, axis=0)
     else:
         raise NotImplementedError
@@ -191,26 +197,42 @@ class Bundle(__Buffer_Base):
                 assert values[i].shape[0] == values[i+1].shape[0]
 
     def push(self, item):
+        return self._push(item, is_batch=False)
+
+    def push_batch(self, item):
+        return self._push(item, is_batch=True)
+
+    def _push(self, item, is_batch=False):
         item = self.fn_convert_push(item)
 
         if isinstance(item, tuple):
             buffer_new = starmap(
-                lambda buffer_sub, item_sub: bundle_cat( buffer_sub, item_sub, n=self.n, ind=self.ind ),
+                lambda buffer_sub, item_sub: bundle_cat( buffer_sub, item_sub, n=self.n, ind=self.ind, is_batch=is_batch ),
                 zip( self._buffer, item )
             )
             self._buffer = tuple(buffer_new)
 
         elif isinstance(item, dict) or isinstance(item, DotMap):
+            if self._buffer is None:
+                buffer_values = [None] * len(item)
+                item_values = item.values()
+            else:
+                buffer_values = self._buffer.values()
+                assert len( self._buffer.keys() ) == item.keys()
+                item_values = map( lambda key: item[key], self._buffer.keys()  )
+                # Make sure the orders of the values are exactly the same.
+
             values = starmap(
-                lambda buffer_sub, item_sub: bundle_cat( buffer_sub, item_sub, n=self.n, ind=self.ind ),
-                zip( self._buffer.values(), item.values() )
+                lambda buffer_sub, item_sub: bundle_cat( buffer_sub, item_sub, n=self.n, ind=self.ind, is_batch=is_batch ),
+                zip( buffer_values, item_values )
             )
             if self._buffer is None:
                 self._buffer = type(item)()
             else:
+                pass
                 # Make sure the order are exactly the same
-                for key_1,key_2 in zip( self._buffer.keys(), item.keys() ):
-                    assert key_1 == key_2
+                # for key_1,key_2 in zip( self._buffer.keys(), item.keys() ):
+                #     assert key_1 == key_2
 
             for k, v in zip(item.keys(), values):
                 self._buffer[k] = v
@@ -261,7 +283,7 @@ def tes_bundle():
     bundle.set_buffer( DotMap(x=x, y=y) )
     bundle.n = 30
     for i in range(100,120):
-        bundle.push( dict( x=np.array([i, i+1]), y = np.array([i+2, i+3]) ) )
+        bundle.push( dict( x=np.array([i, i+0.1]), y = np.array([i+.2, i+.3]) ) )
     for x in bundle.get_batch_enumerate(2, random=False, fill_last=False):
         print(x)
 

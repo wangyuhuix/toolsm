@@ -111,12 +111,21 @@ class DiagNormal(Pd):
 
 import numpy as np
 class FullyConnected_NN(nn.Module):
-    def __init__(self, n_units, v_initial=None, ac_fn = F.relu):
+    def __init__(self, n_input, n_output, n_units_hidden, v_initial=None, ac_fn = F.relu):
         super().__init__()
+
+        if n_units_hidden is None:
+            n_units_hidden = []
+
+        if not isinstance(n_units_hidden, list):
+            n_units_hidden = [n_units_hidden]
+
+
+        n_units = [n_input] + n_units_hidden + [n_output]
 
         fc_all = []
         for ind_layer in range(len(n_units) -1):
-            fc = nn.Linear(in_features=n_units[ind_layer], out_features=n_units[ind_layer + 1])
+            fc = nn.Linear( in_features=n_units[ind_layer], out_features=n_units[ind_layer + 1] )
             setattr(self, f'fc_{ind_layer}', fc )
             fc_all.append( fc )
         self.fc_all = fc_all
@@ -259,9 +268,8 @@ class Linear_MultiHead(nn.Module):
 
 
     def extra_repr(self):
-        return 'in_features={}, out_features={}, n_head={}, bias={}'.format(
-            self.in_features, self.out_features, self.n_head, self.bias is not None
-        )
+        # return 'a'
+        return f'in_features={self.in_features}, out_features={self.out_features}, n_head_in={self.n_head_in}, n_head={self.n_head_out},, bias={self.bias is not None}'
 
 def tes_Linear_MultiHead():
     n_head_feature = 4
@@ -322,10 +330,22 @@ def tes_Linear_MultiHead():
 # tes_Linear_MultiHead()
 
 class FullyConnected_MultiHead_NN(nn.Module):
-    def __init__(self, n_units_shared, n_units_head, n_head, v_initial=None, ac_fn = F.relu):
+    def __init__(self, *, n_input, n_output_head, n_head, n_units_shared=None, n_units_head=None, v_initial=None, ac_fn = F.relu):
         super().__init__()
-        # units_n_head = units_n_head.copy()
-        n_units_head.insert(0, n_units_shared[-1])
+
+        if n_units_shared is None:
+            n_units_shared = []
+        if not isinstance(n_units_shared, list):
+            n_units_shared = [n_units_shared]
+
+        n_units_shared = [n_input] + n_units_shared
+
+        if n_units_head is None:
+            n_units_head = []
+        if not isinstance(n_units_head, list):
+            n_units_head = [n_units_head]
+        n_units_head = [ n_units_shared[-1] ] + n_units_head + [n_output_head]
+
 
         fc_all = []
         for ind_layer in range(len(n_units_shared) -1):
@@ -363,8 +383,13 @@ class FullyConnected_MultiHead_NN(nn.Module):
                 x = x[ torch.arange( 0, len(input_), dtype=torch.long ), head ]
         return x
 
+    # def extra_repr(self):
+    #     return 'in_features={}, out_features={}, n_head={}, bias={}'.format(
+    #         self.in_features, self.out_features, self.n_head, self.bias is not None
+    #     )
+
 def tes_FullyConnected_MultiHead_NN():
-    dnn = FullyConnected_MultiHead_NN(n_units_shared=[10, 20], n_units_head=[40], n_head=3)
+    dnn = FullyConnected_MultiHead_NN(n_input=10,  n_units_shared=[20],n_units_head=[30], n_output_head=40, n_head=3)
     x = torch.randn((2, 10))
     y = dnn(x)
     for n in range( len(x) ):
@@ -384,8 +409,10 @@ def tes_FullyConnected_MultiHead_NN():
 from .learn import Buffer, Bundle
 from dotmap import DotMap
 from torch import optim
+from .logger import Logger
 class InputTrainedJudger_MultiHead():
-    def __init__(self, n_input, n_output, threshold_kwargs, train_kwargs, buffer_size=None, n_units=None, n_units_head=None, n_head=None, ac_fn_target='ELU', ac_fn='TanH'):
+    def __init__(self, n_input, n_output, threshold_judger_kwargs, train_kwargs, buffer_size=None, n_units=None, n_units_head=None, n_head=None, ac_fn_target='ELU', ac_fn_predict='TanH'):
+
 
         if n_units is None:
             n_units = []
@@ -393,117 +420,143 @@ class InputTrainedJudger_MultiHead():
         if n_head is None:
             assert n_units_head is None or len(n_units_head) == 0
             kwargs = dict(
-                n_units_=[n_input] + n_units + [n_output],
+                n_input = n_input,
+                n_output = n_output,
+                n_units_hidden=n_units,
             )
-            dnn_target = FullyConnected_NN( **kwargs, ac_fn=getattr(nn, ac_fn_target )() )
-            dnn = FullyConnected_NN( **kwargs, ac_fn=getattr(nn, ac_fn )() )
+            model_target = FullyConnected_NN( **kwargs, ac_fn=getattr(nn, ac_fn_target )() )
+            model = FullyConnected_NN(**kwargs, ac_fn=getattr(nn, ac_fn_predict)())
         else:
             if n_units_head is None:
                 n_units_head = []
 
             kwargs = dict(
-                n_units_shared=[n_input] + n_units,
-                n_units_head=n_units_head + [n_output],
+                n_input = n_input,
+                n_output_head = n_output,
+                n_units_shared= n_units,
+                n_units_head=n_units_head ,
                 n_head=n_head
             )
-            dnn_target = FullyConnected_MultiHead_NN( **kwargs, ac_fn=getattr(nn, ac_fn_target )() )
-            dnn = FullyConnected_MultiHead_NN( **kwargs, ac_fn=getattr(nn, ac_fn )() )
+            model_target = FullyConnected_MultiHead_NN( **kwargs, ac_fn=getattr(nn, ac_fn_target )() )
+            model = FullyConnected_MultiHead_NN(**kwargs, ac_fn=getattr(nn, ac_fn_predict)())
 
-        self.dnn = dnn
-        self.dnn_target = dnn_target
+        self.model = model
+        self.model_target = model_target
         self.n_head = n_head
-        self.threshold_kwargs = threshold_kwargs
+        self.threshold_judger_kwargs = threshold_judger_kwargs
+        # base = threshold_judger_kwargs['base']#e.g., mean, median
+        # assert base in ['min', 'max', 'median', 'mean']
         self.threshold_judger = 0
 
         self.buffer = Bundle( n=buffer_size )
 
-        self.optimizer = optim.Adam(self.NN.parameters(), lr=1e-3)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
 
-        self.train_kwargs = train_kwargs
+        train_kwargs_default = dict(n_batch=None)
+        train_kwargs_default.update( train_kwargs )
+        self.train_kwargs = train_kwargs_default
+
 
         self.loss_fn = nn.MSELoss()
 
         def loss_fn_judger(input, target):
-            return (input - target).abs().mean(dim=-1, keepdim=True)
+            return (input - target).abs().mean(dim=-1, keepdim=False)
 
         self.loss_fn_judger = loss_fn_judger
+        self.logger = Logger('stdout')
 
 
-    def add(self, x, head=None):
+    def add(self, x, head=None, is_batch=False):
         if self.n_head is None:
             assert head is None
-            y = self.dnn_target(x).detach()
-            self.buffer.push( DotMap(x=x, y=y) )
+            y = self.model_target(x).detach()
+            self.buffer._push( DotMap(x=x, y=y), is_batch=is_batch )
         else:
             assert head is not None
-            y = self.dnn_target(x, head).detach()
-            self.buffer.push( DotMap(x=x, head=head, y=y))
+            y = self.model_target(x, head).detach()
+            self.buffer._push( DotMap(x=x, head=head, y=y), is_batch=is_batch )
 
 
 
     def train(self):
         # TODO: judge threshold by train loss
 
-        kwargs = self.train_kwargs
-
-        if 'loss_threshold' in kwargs:
-            loss_threshold = kwargs['loss_threshold']
+        train_kwargs = self.train_kwargs
+        # loss_threshold, n_batch, n_iteration
+        if 'loss_threshold' in train_kwargs:
+            loss_threshold = train_kwargs['loss_threshold']
         else:
             loss_threshold = None
 
-        for k in range( kwargs['n_iteration'] ):
+        # --- train
+        for k in range( train_kwargs['n_iteration'] ):
             loss_sum = 0.
 
-            for ind_batch, batch in enumerate( self.buffer.get_batch_enumerate( kwargs['n_batch'], random=True, fill_last=False)):
+            for ind_batch, batch in enumerate( self.buffer.get_batch_enumerate( train_kwargs['n_batch'], random=True, fill_last=False)):
                 if self.n_head is None:
-                    model_output = self.dnn( batch.x )
+                    model_output = self.model(batch.x)
                 else:
-                    model_output = self.dnn(batch.x, batch.head)
+                    model_output = self.model(batch.x, batch.head)
 
                 loss = self.loss_fn(input=model_output, target=batch.y)
-                loss_sum += loss.item()
+                loss_sum += loss.item() * len(batch.x)
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
 
-            loss_final = loss_sum / (ind_batch + 1)
+            loss_final = loss_sum / (self.buffer.length + 1)
+
+            self.logger.log_and_dump_keyvalues( loss_final=loss_final , global_step=k )
 
             if loss_threshold is not None:
                 if loss_final <= loss_threshold:
                     break
 
-        threshold_kwargs = self.threshold_kwargs
+        # -- determine threshold_judger
+        # base, mul
+        threshold_judger_kwargs = self.threshold_judger_kwargs
         with torch.no_grad():
             loss_all = []
             for ind_batch, batch in enumerate(
-                    self.buffer.get_batch_enumerate(kwargs['n_batch'], random=False, fill_last=False)):
+                    self.buffer.get_batch_enumerate(train_kwargs['n_batch'], random=False, fill_last=False)):
                 if self.n_head is None:
-                    model_output = self.dnn(batch.x)
+                    model_output = self.model(batch.x)
                 else:
-                    model_output = self.dnn(batch.x, batch.head)
+                    model_output = self.model(batch.x, batch.head)
 
                 loss = self.loss_fn_judger( model_output, batch.y )
                 loss_all.append(loss)
 
-            loss_all = torch.stack()
+            loss_all = torch.cat( loss_all, dim=0 )
+            base = threshold_judger_kwargs['base']#e.g., mean, median
+            base_value = getattr( loss_all, base )().item()
+            mul = threshold_judger_kwargs['mul']
+            self.threshold_judger = base_value * mul
+            self.logger.log_and_dump_keyvalues(threshold_judger=self.threshold_judger, global_step=k+1)
 
-    def is_trained(self, x, head=None):
+
+
+
+    def judge(self, x, head=None, debug=False):
         if self.n_head is None:
-            assert head is None
-            y_target = self.dnn_target(x)
-            y = self.dnn(x)
+            # assert head is None
+            y_target = self.model_target(x)
+            y = self.model(x)
         else:
-            assert head is not None
-            y_target = self.dnn_target(x, head)
-            y = self.dnn(x, head)
+            # assert head is not None
+            y_target = self.model_target(x, head)
+            y = self.model(x, head)
 
-        l1loss_element = (y - y_target).abs().mean(dim=-1, keepdim=True)
-        return l1loss_element <= self.threshold_judger
+        loss = self.loss_fn_judger(input=y, target=y_target)
+        if not debug:
+            return loss <= self.threshold_judger
+        else:
+            return loss <= self.threshold_judger, loss, self.threshold_judger
 
 
     def cuda(self):
-        self.dnn_target.cuda()
-        self.dnn.cuda()
+        self.model_target.cuda()
+        self.model.cuda()
         pass
 
 

@@ -434,6 +434,8 @@ class LogOutputFormat(OutputFormat):
         self.width_max = width_max
         self.ind = 0
         self.widths = None
+        self.keys = []
+        self.kvs_old = None
         # self.widths_cache = np.zeros( shape=(output_header_interval) , dtype=np.int )
 
 
@@ -459,8 +461,16 @@ class LogOutputFormat(OutputFormat):
 
 
     def write_kvs(self, kvs):
+        # The kvs may be different from the old one
+        kvs_old = self.kvs_old
+        if kvs_old is None:
+            kvs_old = dict()
+        len_old = len( kvs_old )
+        kvs_old.update( kvs )
+        kvs = kvs_old
+
         # write header
-        if self.ind % self.output_header_interval == 0 or len(kvs) != len(self.widths):
+        if self.ind % self.output_header_interval == 0 or len(kvs) != len_old:
             items, widths = fmt_row(kvs.keys(), self.widths, is_header=True,width_max=self.width_max)
             self._write_items(items, widths  )
         # write body
@@ -468,6 +478,11 @@ class LogOutputFormat(OutputFormat):
         self._write_items(items, widths  )
 
         self.ind += 1
+
+        for key in kvs:
+            kvs[key] = ''
+        self.kvs_old = kvs
+
 
     def close(self):
         self.file.close()
