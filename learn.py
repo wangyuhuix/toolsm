@@ -218,7 +218,7 @@ class Bundle(__Buffer_Base):
                 item_values = item.values()
             else:
                 buffer_values = self._buffer.values()
-                assert len( self._buffer.keys() ) == item.keys()
+                assert len( self._buffer.keys() ) ==len( item.keys() )
                 item_values = map( lambda key: item[key], self._buffer.keys()  )
                 # Make sure the orders of the values are exactly the same.
 

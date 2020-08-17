@@ -410,6 +410,7 @@ from .learn import Buffer, Bundle
 from dotmap import DotMap
 from torch import optim
 from .logger import Logger
+from warnings import warn
 class InputTrainedJudger_MultiHead():
     def __init__(self, n_input, n_output, threshold_judger_kwargs, train_kwargs, buffer_size=None, n_units=None, n_units_head=None, n_head=None, ac_fn_target='ELU', ac_fn_predict='TanH'):
 
@@ -478,8 +479,18 @@ class InputTrainedJudger_MultiHead():
 
 
 
-    def train(self):
+    def train(self, x=None, head=None):
         # TODO: judge threshold by train loss
+
+        buffer = self.buffer
+        if self.n_head is None:
+            if x is not None:
+                buffer = Bundle( _buffer=DotMap( x=x ) )
+        else:
+            if x is not None and head is not None:
+                buffer = Bundle( _buffer=DotMap(x=x, head=head) )
+
+
 
         train_kwargs = self.train_kwargs
         # loss_threshold, n_batch, n_iteration
@@ -492,7 +503,7 @@ class InputTrainedJudger_MultiHead():
         for k in range( train_kwargs['n_iteration'] ):
             loss_sum = 0.
 
-            for ind_batch, batch in enumerate( self.buffer.get_batch_enumerate( train_kwargs['n_batch'], random=True, fill_last=False)):
+            for ind_batch, batch in enumerate( buffer.get_batch_enumerate( train_kwargs['n_batch'], random=True, fill_last=False)):
                 if self.n_head is None:
                     model_output = self.model(batch.x)
                 else:
@@ -504,13 +515,15 @@ class InputTrainedJudger_MultiHead():
                 loss.backward()
                 self.optimizer.step()
 
-            loss_final = loss_sum / (self.buffer.length + 1)
+            loss_final = loss_sum / buffer.length
 
             self.logger.log_and_dump_keyvalues( loss_final=loss_final , global_step=k )
 
             if loss_threshold is not None:
                 if loss_final <= loss_threshold:
                     break
+        if loss_final > loss_threshold:
+            warn( f'{type(self).__name__}.train() final loss is {loss_final}, not reaching {loss_threshold} within {k} steps' )
 
         # -- determine threshold_judger
         # base, mul
@@ -518,7 +531,7 @@ class InputTrainedJudger_MultiHead():
         with torch.no_grad():
             loss_all = []
             for ind_batch, batch in enumerate(
-                    self.buffer.get_batch_enumerate(train_kwargs['n_batch'], random=False, fill_last=False)):
+                    buffer.get_batch_enumerate(train_kwargs['n_batch'], random=False, fill_last=False)):
                 if self.n_head is None:
                     model_output = self.model(batch.x)
                 else:
