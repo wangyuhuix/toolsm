@@ -72,17 +72,18 @@ def get_logger_dir(dir_log_debug=None, dir_log_release=None, dir_indicator=None)
     return root_dir
 
 
-def __trucate_s(s):
-    s_split = s.split('_')
+def __get_fn_trucate_s(length):
+    def __trucate_s(s):
+        s_split = s.split('_')
 
-    for i in range(len(s_split)):
-        s_split[i] = s_split[i][:2]
+        for i in range(len(s_split)):
+            s_split[i] = s_split[i][:length]
 
-    s = '_'.join(s_split)
-    # TODO: split by the upper case
-    return s
+        s = '_'.join(s_split)
+        # TODO: split by the upper case
+        return s
 
-
+    return __trucate_s
 
 
 # TODO: when the dir is running by other thread, we should also exited.
@@ -147,8 +148,13 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
 
     name_group = get_name_group()
     key_exclude_all.extend(args.keys_group)
-    if len( name_group ) >= 256:
-        name_group = get_name_group( __trucate_s )
+
+    for length in [4,3,2,1]:
+        if len( name_group ) >= 256:
+            name_group = get_name_group( __get_fn_trucate_s(length) )
+        else:
+            break
+
     args.name_group = name_group
 
     # ----------- get sub directory -----------
@@ -189,8 +195,13 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
         return name_task
 
     name_task = get_name_task()
-    if len( name_task ) >= 256:
-        name_task = get_name_task( __trucate_s )
+
+    for length in [4,3,2,1]:
+        if len( name_task ) >= 256:
+            name_task = get_name_task( __get_fn_trucate_s(length) )
+        else:
+            break
+
 
     # ----------------- prepare directory ----------
     def get_dir_full( d_type, suffix='', print_root=True, print_dirtype=True ):

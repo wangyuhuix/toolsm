@@ -20,10 +20,10 @@ class Timer():
     def reset(self):
         self._time = time.time()
 
-    def time(self, msg='', verbose=True, reset=True):
+    def time(self, msg='Time:', verbose=True, reset=True):
         interval = time.time() - self._time
         if verbose:
-            print(f'msg: {interval} s')
+            print(f'{msg} {interval} s')
         if reset:
             self.reset()
         self.time_history.append( interval )
@@ -354,9 +354,10 @@ def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_v
             keys_old = list( obj.keys() )
             for key in keys_old:
                 key_new = fn_key(key)
-                if key_new in keys_old:
-                    warn( f'key {key_new} exist. (old key is {key})' )
-                obj[ key_new ] = obj.pop( key )
+                if key_new != key:
+                    if key_new in keys_old:
+                        warn( f'key {key_new} exist. (old key is {key})' )
+                    obj[ key_new ] = obj.pop( key )
 
         for key in obj.keys():
             if isinstance( obj[key], dict ):
