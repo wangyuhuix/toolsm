@@ -149,7 +149,8 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
     name_group = get_name_group()
     key_exclude_all.extend(args.keys_group)
 
-    for length in [4,3,2,1]:
+    # TODO: specify cut length
+    for length in [1]:
         if len( name_group ) >= 256:
             name_group = get_name_group( __get_fn_trucate_s(length) )
         else:
@@ -196,7 +197,7 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
 
     name_task = get_name_task()
 
-    for length in [4,3,2,1]:
+    for length in [1]:
         if len( name_task ) >= 256:
             name_task = get_name_task( __get_fn_trucate_s(length) )
         else:
@@ -932,6 +933,8 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
         obj.args_all.append( info )
 
         items = fn_loaddata(path, info)
+        obj['__name_all'] = set()
+        # e.g. [('return', global_steps,return)]
         if items is None:
             continue
         for item in items:
@@ -940,19 +943,43 @@ def get_result_grouped(path_root, depth, keys_info_main, keys_info_sub, fn_loadd
             name, global_steps, values = item
 
             tools.save_s(f'{path}/len={len(global_steps)}', '')
-            
+
+            obj['__name_all'].add(name)
             if f'{name}_all' not in obj.keys():
-                obj[f'{name}_global_steps'] = global_steps 
-                obj[f'{name}_global_steps_path'] = path
                 obj[f'{name}_all'] = []
+                obj[f'__{name}_global_steps_all'] = []
+                obj[f'__{name}_length_all'] = []
             else:
-                if len( global_steps ) != len( obj[f'{name}_global_steps'] ):
-                    tools.warn_( f"length not equal:\n{path}\noldp:{obj[f'{name}_global_steps_path']}" )
-                    continue
+                pass
+                # if len( global_steps ) != len( obj[f'{name}_global_steps'] ):
+                #     tools.warn_( f"length not equal:\n{path}\noldp:{obj[f'{name}_global_steps_path']}" )
+                #     continue
             obj[f'{name}_all'].append( values )
+            obj[f'__{name}_global_steps_all'].append(global_steps)
+            obj[f'__{name}_length_all'].append( len(values) )
 
 
         process.update(1)
+
+
+    def del_value_short(obj):
+        len_all = np.array( obj[f'__{name}_length_all'] )
+        len_max = np.max(len_all)
+        ind_remain, = np.where( len_all >= len_max )
+        values = obj[f'{name}_all']
+        obj[f'{name}_all'] = list( map( lambda i_:values[i_],  ind_remain) )
+        obj[f'{name}_global_steps'] = obj[f'__{name}_global_steps_all'][ ind_remain[0] ]
+        del obj[f'__{name}_length_all']
+        del obj[f'__{name}_global_steps_all']
+
+    for name_main in results_group.keys():
+        obj = results_group[name_main]
+        if not contain_subtask:
+            del_value_short( obj )
+        else:
+            for name_sub in results_group[name_main].keys():
+                del_value_short(obj[name_sub] )
+
     return results_group
 
 def write_result_grouped_plot(task_all, algdir_2_setting, path_root_data, path_root_save=None, setting_global=None, IS_DEBUG=False):
@@ -1382,8 +1409,6 @@ def get_load_csv_fn(key_y_all, key_global_step='global_step', filename='process.
         key_y_all = [key_y_all]
 
     def load_csv_entity(p, *args, **kwargs):
-
-
 
         file = f'{p}/{filename}'
         if not osp.exists( file ):
