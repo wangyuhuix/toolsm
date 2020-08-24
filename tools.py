@@ -719,7 +719,7 @@ from dotmap import DotMap
 
 def update_dict(dictmain, dictnew):
     for key in dictnew:
-        if ( isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) and key in dictmain.keys():
+        if ( isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) and key in dictmain.keys() and ( isinstance(dictmain[key], dict) or isinstance(dictmain[key], DotMap) ):
             dictmain[key] = update_dict( dictmain[key], dictnew[key] )
         else:
             dictmain[key] = copy.deepcopy( dictnew[key])
@@ -744,6 +744,14 @@ def update_dict_specifed(dictmain, dictnew):
     return dictmain
 
 
+def update_dict_self_specifed(d):
+    # type_ = type(d)
+    dictmain = dict((k,v) for k,v in d.items() if not k.startswith('__'))
+    dictspecific = dict( (k,v) for k,v in d.items() if k.startswith('__') )
+    if isinstance(d, DotMap):
+        dictmain = DotMap(dictmain)
+        dictspecific = DotMap(dictspecific)
+    return update_dict_specifed( dictmain, dictspecific )
 
 '''
 def JSONFile(filepath, *keys):
