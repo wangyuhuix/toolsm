@@ -65,6 +65,18 @@ class __Buffer_Base():
         yield self.fn_convert_get(data_batch)
 
 
+
+def _get_fn_stack(item):
+    if isinstance(item, torch.Tensor):
+        fn_stack = lambda r: torch.stack(r)
+    elif isinstance(item, np.ndarray):
+        fn_stack = lambda r: np.stack(r)
+    else:
+        fn_stack = lambda r: list(r)
+    return fn_stack
+
+
+# TODO: merge Buffer and Bundle as 'save_form' and 'get_form'
 class Buffer(__Buffer_Base):
     '''
         Each piece of data are considered as a atom.
@@ -99,15 +111,17 @@ class Buffer(__Buffer_Base):
             pass
         elif self.get_form == 'bundle':
             if self.item_type == tuple:
+                fn_stack = _get_fn_stack( result[0][0] )
                 result = zip(*result)  # ( (...x_i...), (...y_i...) )
-                result = map( lambda axis: list(axis), result )
-                result = tuple(result) # ( [...x_i...], [...y_i...] )
+                result = map( lambda r: fn_stack(r), result )
+                result = tuple(result) # ( X_stack, Y_stack )
             elif self.item_type in [dict, DotMap] :
+                fn_stack = _get_fn_stack(  next(iter(result[0].values()))  )
                 keys = result[0].keys()
                 result_new = self.item_type()
                 for key in keys:
-                    result_new[key] = map( lambda item: item[key], result ) # dict( x=(...x_i...), y=(...y_i...) )
-                    result_new[key] = list( result_new[key] ) # dict( x=[...x_i...],y=[...y_i...] )
+                    result_new[key] = list( map( lambda item: item[key], result ) ) # dict( x=(...x_i...), y=(...y_i...) )
+                    result_new[key] = fn_stack( result_new[key] ) # dict( x=X_stack,y=Y_stack )
                 result = result_new
         return result
 
@@ -288,6 +302,9 @@ def tes_bundle():
         print(x)
 
 def tes_buffer():
+    from numpy import array
+    from torch import tensor
+
     # --- original
     buffer = Buffer(n=10)
     for i in range(10):
@@ -298,26 +315,33 @@ def tes_buffer():
     # --- item: tuple
     buffer = Buffer( n=10 )
     for i in range(10):
-        buffer.push( (i,i*10) )
+        buffer.push( tensor( [i,i+0.1] ) )
     for x in buffer.get_batch_enumerate(3, random=False, fill_last=False):
         print(x)
 
     print('--- item: tuple, get_form: bundle')
     buffer = Buffer( n=10, get_form='bundle' )
     for i in range(10):
-        buffer.push( (i,i*10) )
+        buffer.push( tensor([i,i+0.1]) )
     for x in buffer.get_batch_enumerate(3, random=False, fill_last=False):
         print(x)
 
 
     print('--- item: dict, get_form: bundle')
     buffer = Buffer( n=10, get_form='bundle' )
+
+
     for i in range(10):
-        buffer.push( DotMap(x=i,y=i*10) )
+        buffer.push( DotMap(x=tensor(i),y=tensor(i+0.1) ) )
+
     for x in buffer.get_batch_enumerate(3, random=False, fill_last=False):
         print(x)
+    print('sample result')
+    for i in range(10):
+        print( buffer.sample(3) )
+
 
 
 if __name__ == '__main__':
-    tes_bundle()
-    # tes_buffer()
+    # tes_bundle()
+    tes_buffer()
