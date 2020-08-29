@@ -164,7 +164,7 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
     # ----------- get sub directory -----------
 
 
-    key_exclude_all.extend(['log_dir_mode', 'name_group', 'keys_group', 'name_run', 'is_multiprocess'])
+    key_exclude_all.extend(['log_dir_mode', 'name_group_ext', 'name_group', 'keys_group', 'name_run', 'is_multiprocess'])
 
     def get_name_task(key2str=None):
         if key2str is not None:
