@@ -162,8 +162,8 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
     args_list = args_list.copy()
     args_list = args_NameAndValues2args_list( args_NameAndValues, args_default, args_list  )
     args_call_all = []
-    if tools.ispc('pc211'):
-        python = '/home/pc211/anaconda3/envs/ed/bin/python'
+    if tools.ispc('pc211') or tools.ispc('test'):
+        python = f'/home/{tools.pcname()}/anaconda3/envs/ed/bin/python'
     else:
         python = 'python'
     args_call_base = [python, '-m', script]
