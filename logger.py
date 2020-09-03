@@ -89,6 +89,26 @@ def __get_fn_trucate_s(length):
 
     return __trucate_s
 
+def __split_long_filename(name):
+    # TODO: split into 2 or 3 dirs
+    symbol_2_cnt = { '()':0, '{}':0 }
+    for _i in range(len(name)-1, -1, -1):
+        s = name[_i]
+        if s == ',':
+            if all( [symbol_2_cnt[symbol] == 0 for symbol in symbol_2_cnt  ] ) and len(name[:_i]) <= 256:
+                name = f'{name[:_i]}/{name[_i:]}'
+                break
+        else:
+            for symbol in symbol_2_cnt.keys():
+                if s == symbol[1]:
+                    symbol_2_cnt[symbol] += 1
+                elif s == symbol[0]:
+                    symbol_2_cnt[symbol] -= 1
+    else:
+        raise NotImplementedError('SPLIT path failed')
+
+    return name
+
 
 # TODO: when the dir is running by other thread, we should also exited.
 def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, root_dir=''):
@@ -154,10 +174,16 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
 
     # TODO: specify cut length
     for length in [1]:
-        if len(name_group) >= 256:
+        if len(name_group) > 256:
             name_group = get_name_group(__get_fn_trucate_s(length))
         else:
             break
+
+    if len(name_group) > 256:
+        name_group = __split_long_filename( name_group )
+
+
+
 
     args.name_group = name_group
 
@@ -199,10 +225,13 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
     name_task = get_name_task()
 
     for length in [1]:
-        if len(name_task) >= 256:
+        if len(name_task) > 256:
             name_task = get_name_task(__get_fn_trucate_s(length))
         else:
             break
+    if len(name_task) > 256:
+        name_task = __split_long_filename(name_task)
+
 
     # ----------------- prepare directory ----------
     def get_dir_full(d_type, suffix='', print_root=True, print_dirtype=True):
@@ -423,6 +452,7 @@ class CsvOuputFormat(OutputFormat):
 
 
 class TensorflowOuputFormat(OutputFormat):
+    # NOTE: If global_step is not included, we will add the global_step automatically
     def __init__(self, file):
         self.writer = file
         self.global_step = -1

@@ -93,6 +93,7 @@ class Buffer(__Buffer_Base):
     '''
     def __init__(self, n=None, get_form='item', **kwargs ):
         self._buffer = []
+        self.has_fetched = []
         self.n = n
         if n is None:
             warn('Buffer size not limited')
@@ -106,7 +107,7 @@ class Buffer(__Buffer_Base):
         return len(self._buffer)
 
     def get_data_by_inds(self, ind_all):
-        result = [self._buffer[ind] for ind in ind_all] #[...item_i...]
+        result = [self.get_from_buffer(ind) for ind in ind_all] #[...item_i...]
         if self.get_form == 'item':
             pass
         elif self.get_form == 'bundle':
@@ -125,6 +126,15 @@ class Buffer(__Buffer_Base):
                 result = result_new
         return result
 
+    def enumerate(self):
+        for ind in range(self.length):
+            yield self.get_from_buffer(ind)
+
+
+    def get_from_buffer(self, ind):
+        self.has_fetched[ind] = True
+        return self._buffer[ind]
+
     def push(self, item):
         item = self.fn_convert_push( item )
         if not hasattr( self, 'item_type' ):
@@ -135,8 +145,10 @@ class Buffer(__Buffer_Base):
 
         if self.n is None or len(self._buffer) < self.n:
             self._buffer.append(item)
+            self.has_fetched.append(False)
         else:
             self._buffer[self.ind] = item
+            self.has_fetched[self.ind] = False
 
         if self.n is not None:
             self.ind = (self.ind + 1) % self.n
@@ -304,6 +316,22 @@ def tes_bundle():
 def tes_buffer():
     from numpy import array
     from torch import tensor
+
+
+
+    buffer = Buffer(n=2)
+
+    buffer.push(0)
+    buffer.push(1)
+    print(buffer.has_fetched)
+    buffer.get_from_buffer(0)
+    print(buffer.has_fetched)
+    buffer.push(2)
+    print(buffer.has_fetched)
+    # for x in buffer.enumerate():
+    #     print(x)
+    #     break
+    exit()
 
     # --- original
     buffer = Buffer(n=10)

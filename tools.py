@@ -20,7 +20,7 @@ class Timer():
     def reset(self):
         self._time = time.time()
 
-    def time(self, msg='Time:', verbose=True, reset=True):
+    def time(self, verbose=True, msg='Time:', reset=True):
         interval = time.time() - self._time
         if verbose:
             print(f'{msg} {interval} s')
