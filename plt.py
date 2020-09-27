@@ -10,7 +10,7 @@ def set_position(fig=None, x=None, y=None):
     w_screen, h_screen = get_screensize(fig)
     w, h = get_size(fig)
     if x is None:
-        x = w_screen *1./4
+        x = w_screen *1./3 -w*2
     if y is None:
         y = (h_screen - h)//2
     # print(w_screen, w)

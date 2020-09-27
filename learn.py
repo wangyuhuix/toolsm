@@ -93,7 +93,7 @@ class Buffer(__Buffer_Base):
     '''
     def __init__(self, n=None, get_form='item', **kwargs ):
         self._buffer = []
-        self.has_fetched = []
+        self._has_fetched = []
         self.n = n
         if n is None:
             warn('Buffer size not limited')
@@ -101,6 +101,9 @@ class Buffer(__Buffer_Base):
         self.get_form = get_form
         super().__init__(**kwargs)
 
+    @property
+    def has_fetched(self):
+        return self._has_fetched.copy()
 
     @property
     def length(self):
@@ -132,7 +135,7 @@ class Buffer(__Buffer_Base):
 
 
     def get_from_buffer(self, ind):
-        self.has_fetched[ind] = True
+        self._has_fetched[ind] = True
         return self._buffer[ind]
 
     def push(self, item):
@@ -145,10 +148,10 @@ class Buffer(__Buffer_Base):
 
         if self.n is None or len(self._buffer) < self.n:
             self._buffer.append(item)
-            self.has_fetched.append(False)
+            self._has_fetched.append(False)
         else:
             self._buffer[self.ind] = item
-            self.has_fetched[self.ind] = False
+            self._has_fetched[self.ind] = False
 
         if self.n is not None:
             self.ind = (self.ind + 1) % self.n
