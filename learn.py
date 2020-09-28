@@ -93,12 +93,14 @@ class Buffer(__Buffer_Base):
     '''
     def __init__(self, n=None, get_form='item', **kwargs ):
         self._buffer = []
+        self._weight = []
         self._has_fetched = []
         self.n = n
         if n is None:
             warn('Buffer size not limited')
         self.ind = 0
         self.get_form = get_form
+        self.weight_is_None = None
         super().__init__(**kwargs)
 
     @property
@@ -138,23 +140,52 @@ class Buffer(__Buffer_Base):
         self._has_fetched[ind] = True
         return self._buffer[ind]
 
-    def push(self, item):
+    def push(self, item, weight=None):
         item = self.fn_convert_push( item )
         if not hasattr( self, 'item_type' ):
             self.item_type = type(item) # TODO: debug
         else:
             assert self.item_type == type(item)
 
+        if self.weight_is_None is None:
+            self.weight_is_None = weight is None
 
-        if self.n is None or len(self._buffer) < self.n:
-            self._buffer.append(item)
-            self._has_fetched.append(False)
+        assert self.weight_is_None == (weight is None)
+
+
+        if self.weight_is_None:
+            if self.n is None or len(self._buffer) < self.n:
+                self._buffer.append(item)
+                self._has_fetched.append(False)
+            else:
+                self._buffer[self.ind] = item
+                self._has_fetched[self.ind] = False
+
+            if self.n is not None:
+                self.ind = (self.ind + 1) % self.n
         else:
-            self._buffer[self.ind] = item
-            self._has_fetched[self.ind] = False
+            # TODO: stochastic choose
 
-        if self.n is not None:
-            self.ind = (self.ind + 1) % self.n
+            # the items are order by weight desc
+            # TODO: maybe I need a lock for parallel processing
+            weight_new = weight
+            for ind in range( len(self._weight) ):
+                if weight_new > self._weight[ind] :
+                    self._buffer.insert(ind, item)
+                    self._weight.insert(ind, weight_new)
+                    self._has_fetched.insert(ind, False)
+                    if self.n is not None and len(self._buffer) > self.n:
+                        del self._buffer[-1], self._weight[-1], self._has_fetched[-1]
+                    break
+            else:
+                if self.n is None or len(self._buffer) < self.n:
+                    self._buffer.append( item  )
+                    self._weight.append( weight_new )
+                    self._has_fetched.append(False)
+
+
+
+
 
     def merge(self, replaybuffer):
         for traj in replaybuffer.buffer:
@@ -319,7 +350,21 @@ def tes_bundle():
 def tes_buffer():
     from numpy import array
     from torch import tensor
+    import numpy as np
 
+    buffer = Buffer(n=5)
+    a = list( range(10) )
+    a = np.random.permutation( a )
+    print(a)
+    for i in a:
+        buffer.push( i, weight=i )
+        print('-'*10)
+        print(buffer._buffer)
+        print(buffer._weight)
+        print('-' * 10)
+    # for x in buffer.get_batch_enumerate(3, random=False, fill_last=False):
+    #     print(x)
+    exit()
 
 
     buffer = Buffer(n=2)
@@ -334,7 +379,7 @@ def tes_buffer():
     # for x in buffer.enumerate():
     #     print(x)
     #     break
-    exit()
+
 
     # --- original
     buffer = Buffer(n=10)
@@ -370,6 +415,8 @@ def tes_buffer():
     print('sample result')
     for i in range(10):
         print( buffer.sample(3) )
+
+
 
 
 

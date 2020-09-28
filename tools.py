@@ -382,23 +382,49 @@ def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_v
 # print(json2str( dict(a='a=aaa, b=1'), remove_quotes_key=0, remove_quotes_value=1 ))
 # print(json2str_file( dict(a='11a')))
 # exit()
-def load_vars(filename, catchError=False):
+def load_vars(filename, catchError=False, is_enumerate=False):
     try:
-        values = []
+        value_all = []
         with open(filename,'rb') as f:
+            # if is_enumerate:
+            #     while True:
+            #         value = pickle.load(f)
+            #         yield value
+            # else:
             try:
                 while True:
-                    values.append(pickle.load( f ))
+                    value = pickle.load( f )
+                    value_all.append(value)
             except EOFError as e:
-                if len(values) == 1:
-                    return values[0]
+                if len(value_all) == 1:
+                    return value_all[0]
                 else:
-                    return values
+                    return value_all
     except Exception as e:
         if catchError:
             warn( f'Load Error:\n{filename}' )
             return None
         raise e
+
+def load_vars_enumerate(filename, catchError=False):
+
+    try:
+        try:
+            with open(filename,'rb') as f:
+                while True:
+                    value = pickle.load(f)
+                    yield value
+        except EOFError as e:
+            if len(value_all) == 1:
+                return value_all[0]
+            else:
+                return value_all
+    except Exception as e:
+        if catchError:
+            warn( f'Load Error:\n{filename}' )
+            return None
+        raise e
+
 #
 def save_vars(filename, *vs, verbose=0,  append=False):
     if verbose:
