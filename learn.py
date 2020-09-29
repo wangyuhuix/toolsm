@@ -91,7 +91,7 @@ class Buffer(__Buffer_Base):
         item is one piece of data, it can be any type.
         item = (x,y) or dict(x=x,y=y)
     '''
-    def __init__(self, n=None, get_form='item', **kwargs ):
+    def __init__(self, n=None, get_form='item', temperature_weight=None, **kwargs):
         self._buffer = []
         self._weight = []
         self._has_fetched = []
@@ -101,6 +101,7 @@ class Buffer(__Buffer_Base):
         self.ind = 0
         self.get_form = get_form
         self.weight_is_None = None
+        self.temperature_weight = temperature_weight
         super().__init__(**kwargs)
 
     @property
@@ -164,27 +165,36 @@ class Buffer(__Buffer_Base):
             if self.n is not None:
                 self.ind = (self.ind + 1) % self.n
         else:
-            # TODO: stochastic choose
 
+            assert self.temperature_weight is not None
             # the items are order by weight desc
             # TODO: maybe I need a lock for parallel processing
             weight_new = weight
             for ind in range( len(self._weight) ):
-                if weight_new > self._weight[ind] :
-                    self._buffer.insert(ind, item)
-                    self._weight.insert(ind, weight_new)
-                    self._has_fetched.insert(ind, False)
-                    if self.n is not None and len(self._buffer) > self.n:
-                        del self._buffer[-1], self._weight[-1], self._has_fetched[-1]
+                if weight_new >= self._weight[ind] :
                     break
             else:
-                if self.n is None or len(self._buffer) < self.n:
-                    self._buffer.append( item  )
-                    self._weight.append( weight_new )
-                    self._has_fetched.append(False)
+                ind = len( self._weight )
 
+            if self.n is not None and len(self._buffer) >= self.n:
+                # TODO: give new data more weight.
+                _weight = self._weight
+                print(_weight)
+                weight = np.array(self._weight)
 
+                weight = (weight - np.mean(weight)) / (np.std(weight) + 0.001)
+                weight_exp = np.exp( weight * self.temperature_weight)
+                weight_exp_normalized = weight_exp / np.sum(weight_exp)
+                ind_out = np.random.choice(range(len(weight_exp_normalized)), p=weight_exp_normalized)
+                # print( f'{len( self._weight )-ind_out}' )
+                # ind_out = len( self._weight ) - 1 # for debu
+                del self._buffer[ind_out], self._weight[ind_out], self._has_fetched[ind_out]
 
+                if ind > ind_out:
+                    ind -=1
+            self._buffer.insert(ind, item)
+            self._weight.insert(ind, weight_new)
+            self._has_fetched.insert(ind, False)
 
 
     def merge(self, replaybuffer):
@@ -352,7 +362,7 @@ def tes_buffer():
     from torch import tensor
     import numpy as np
 
-    buffer = Buffer(n=5)
+    buffer = Buffer(n=5, temperature_weight=1)
     a = list( range(10) )
     a = np.random.permutation( a )
     print(a)
