@@ -1300,8 +1300,12 @@ def write_result_grouped_plot(task_all, path_root_data, path_root_save=None, alg
                 # ----- Set Legend
                 if setting.legend or isinstance(setting.legend, DotMap):
                     h = plt.gca().get_lines()
+                    if isinstance(setting.legend, DotMap):
+                        kwargs = setting.legend.toDict()
+                    else:
+                        kwargs = dict()
                     leg = plt.legend(handles=h, labels=legend_all, handlelength=4.0,
-                                     ncol=1, **setting.legend.toDict())
+                                     ncol=1, **kwargs)
 
                 # ----- Save figure
                 if len(key_y_all) == 1:
