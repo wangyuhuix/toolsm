@@ -25,8 +25,13 @@ def kw2sql__params(__joint=None, **kw):
     return sqls, params
 
 
+def tes_kw2sql__params():
+    print( kw2sql__params(  a=1, b=2, __joint='and' ) )
 
-def convert_sqlwhere__params(condition='', params=None, condition_kw_joint=None, **condition_kw):
+# tes_kw2sql__params()
+# exit()
+
+def convert2sqlwhere__params(condition='', params=None, condition_kw_joint=None, **condition_kw):
     '''
     transform 'key2word' to 'where' string
     '<condition> <condition_kw_str>'
@@ -45,6 +50,8 @@ def convert_sqlwhere__params(condition='', params=None, condition_kw_joint=None,
     # --- Preprocessing the condition
     if params is None:
         params = []
+    if condition_kw is None:
+        condition_kw = dict()
     if condition_kw_joint is None:
         condition_kw_joint = 'and'
 
@@ -64,31 +71,59 @@ def convert_sqlwhere__params(condition='', params=None, condition_kw_joint=None,
 
     return condition_final, params
 
+
+import functools
 class DbHelper:
+    '''
+    NOTE:
+        1. DO NOT use the following name as the field name of table.
+        condition, params, condition_kw_joint, order_by, limit, offset
+    '''
     def __init__(self, table, conn):
         self.table = table
         self.conn = conn
+        self.get_tuple = functools.partial( self._get, return_type='default'   )
+        self.get_dict = functools.partial(self._get, return_type='dict')
+        # self.get_key2dict = functools.partial(self._get, return_type='key2dict' )
 
     def cnt(self, table='', condition='', params=None, condition_kw_joint='and', **condition_kw):
         if not table:
             table = self.table
 
-        sqlwhere, params = convert_sqlwhere__params(condition, params, condition_kw_joint=condition_kw_joint, **condition_kw)
+        sqlwhere, params = convert2sqlwhere__params(condition, params, condition_kw_joint=condition_kw_joint, **condition_kw)
         cursor = self.conn.cursor()
         cursor.execute(f'select count(*) from {table} {sqlwhere}', params)
         return cursor.fetchone()[0]
 
-    def exist(self, table='', condition='', params=[], **condition_kw):
+    def exist(self, table='', condition='', params=None, **condition_kw):
         if not table:
             table = self.table
         return self.cnt(table, condition, params, **condition_kw) > 0
 
-    def get(self, table='', return_type='default', return_kwargs={}, condition='', params=None, condition_kw_joint=None, **condition_kw):
+    def _get(self, table='', return_type='default', return_kwargs={},
+             order_by=None, limit=None, offset=None,
+             condition='', params=None, condition_kw_joint=None, **condition_kw):
         if not table:
             table = self.table
-        sqlwhere, params = convert_sqlwhere__params(condition, params, condition_kw_joint=condition_kw_joint, **condition_kw)
+        sqlwhere, params = convert2sqlwhere__params(condition, params, condition_kw_joint=condition_kw_joint, **condition_kw)
         cursor = self.conn.cursor()
-        cursor.execute(f"SELECT * from {table} {sqlwhere}", params)
+        sql = f"SELECT * from {table} {sqlwhere}"
+        if order_by is not None:
+            order_by = order_by.strip().lower()
+            if order_by != '' and not order_by.startswith('order by'):
+                order_by = f'order by {order_by}'
+        else:
+            order_by = ''
+
+        sqllimit = ''
+        if limit is not None:
+            sqllimit = f'limit {limit}'
+        sqloffset = ''
+        if offset is not None:
+            sqloffset = f'offset {offset}'
+
+        sql = f'{sql} {order_by} {sqllimit} {sqloffset}'
+        cursor.execute(sql, params)
         result_all = cursor.fetchall()
         if return_type == 'default':
             '''
@@ -131,26 +166,35 @@ class DbHelper:
             raise NotImplementedError
 
 
-    def get_dict(self, table='', condition_partial='', params=None, condition_kw_joint=None, **condition_kw):
-        return self.get(table, return_type='dict', return_kwargs=dict(), condition=condition_partial, params=params, condition_kw_joint=condition_kw_joint, **condition_kw)
+    # def get(self, table='', order_by=None, limit=None, offset=None,
+    #         condition='', params=None, condition_kw_joint=None, condition_kw=None):
+    #     return self._get(table, return_type='default', return_kwargs=dict(),
+    #                      order_by=order_by, limit=limit, offset=offset,
+    #                      condition=condition, params=params, condition_kw_joint=condition_kw_joint, condition_kw=condition_kw
+    #                      )
+    #
+    # def get_dict(self, table='', order_by=None, limit=None, offset=None, condition='', params=None, condition_kw_joint=None, condition_kw=None):
+    #     return self._get(table, return_type='dict', return_kwargs=dict(),
+    #                      order_by=order_by, limit=limit, offset=offset,
+    #                      condition=condition, params=params, condition_kw_joint=condition_kw_joint, condition_kw=condition_kw
+    #                      )
+    #
+    def get_key2dict(self, key, table='',
+                     order_by=None, limit=None, offset=None,
+                     condition='', params=None, condition_kw_joint=None, **condition_kw):
+        return self._get(table, return_type='key2dict', return_kwargs=dict(key=key),
+                         order_by=order_by, limit=limit, offset=offset,
+                         condition=condition, params=params, condition_kw_joint=condition_kw_joint, **condition_kw)
 
-    def get_key2dict(self, key, table='', condition='', params=None, condition_kw_joint=None, **condition_kw):
-        return self.get(table, return_type='key2dict', return_kwargs=dict(key=key), condition=condition, params=params, condition_kw_joint=condition_kw_joint, **condition_kw)
-
-    # def show_all(self, **kwfilters):
-    #     print('-------items------')
-    #     for i in self.get(**kwfilters):
-    #         print(i)
-    #     print('-------items end------')
 
 
     def insert(self, table='', **kw):
         if not table:
             table = self.table
         cursor = self.conn.cursor()
-        columns_sql = ",".join(kw.keys())
+        sql_columns = ",".join(kw.keys())
         values_placeholder = ",".join(["?"] * len(kw))
-        cursor.execute(f'insert into {table} ({columns_sql}) values ({values_placeholder})', list(kw.values()))
+        cursor.execute(f'insert into {table} ({sql_columns}) values ({values_placeholder})', list(kw.values()))
         self.conn.commit()
         return self.conn.total_changes
 
@@ -158,7 +202,7 @@ class DbHelper:
         if not table:
             table = self.table
         sql_set, params_set = kw2sql__params(__joint=',', **update_kw)
-        sql_where, params_where = convert_sqlwhere__params(condition, params, condition_kw_joint=condition_kw_joint, **condition_kw)
+        sql_where, params_where = convert2sqlwhere__params(condition, params, condition_kw_joint=condition_kw_joint, **condition_kw)
         assert sql_where.strip() != '', 'Please make sure that you will update all the items, or please use 1=1'
         cursor = self.conn.cursor()
         cursor.execute(f'update {table} set {sql_set} {sql_where}', params_set+ params_where)
@@ -169,22 +213,22 @@ class DbHelper:
     def delete(self, table='', condition='', params=None, condition_kw_joint=None, **condition_kw):
         if not table:
             table = self.table
-        sql_where, params_where = convert_sqlwhere__params(condition, params, condition_kw_joint=condition_kw_joint, **condition_kw)
+        sql_where, params_where = convert2sqlwhere__params(condition, params, condition_kw_joint=condition_kw_joint, **condition_kw)
         assert sql_where.strip() != '', 'Please make sure that you will delete all the items, or please use 1=1'
         cursor = self.conn.cursor()
         cursor.execute(f"DELETE from {table} {sql_where}", params_where)
         self.conn.commit()
         return self.conn.total_changes
 
-    def columns(self, table='', fmt='list'):
+    def columns(self, table='', format='list'):
         if not table:
             table = self.table
         cursor = self.conn.cursor()
         cursor.execute(f'PRAGMA table_info({table})')
         columns = cursor.fetchall()
-        if fmt == 'list':
+        if format == 'list':
             columns = [c[1] for ind, c in enumerate(columns)]
-        elif fmt == 'key2index':
+        elif format == 'key2index':
             columns = {c[1]:ind  for ind,c in enumerate(columns)}
         else:
             raise NotImplementedError
