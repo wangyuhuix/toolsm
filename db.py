@@ -17,8 +17,13 @@ def kw2sql__params(__joint=None, **kw):
     params = []
     if len(kw) > 0:
         for k, v in kw.items():
-            sqls.append(f'{k}=(?)')
-            params.append(v)
+            if isinstance( v, list ):
+                sql_t = ','.join( ['?']*len(v) )
+                sqls.append(f'{k} in ({sql_t})')
+                params.extend( v )
+            else:
+                sqls.append(f'{k}=(?)')
+                params.append(v)
     if __joint is not None:
         __joint = f' {__joint} '
         sqls = __joint.join(sqls)
@@ -84,6 +89,7 @@ class DbHelper:
         self.conn = conn
         self.get_tuple = functools.partial( self._get, return_type='default'   )
         self.get_dict = functools.partial(self._get, return_type='dict')
+        self.get_dotmap = functools.partial(self._get, return_type='dotmap')
         # self.get_key2dict = functools.partial(self._get, return_type='key2dict' )
 
     def cnt(self, table='', condition='', params=None, condition_kw_joint='and', **condition_kw):
@@ -133,7 +139,7 @@ class DbHelper:
             ]
             '''
             return result_all
-        elif return_type == 'dict':
+        elif return_type in ['dict', 'dotmap']:
             '''
             [
                 item (dict format),
@@ -143,7 +149,10 @@ class DbHelper:
             for ind in range(len(result_all)):
                 key2index = self.columns(table, 'key2index')
                 result = result_all[ind]
-                result_all[ind] = DotMap()
+                if return_type == 'dotmap':
+                    result_all[ind] = DotMap()
+                elif return_type == 'dict':
+                    result_all[ind] = dict()
                 for name,index in key2index.items():
                     result_all[ind][name] = result[index]
             return result_all
@@ -202,9 +211,11 @@ class DbHelper:
         if not table:
             table = self.table
         sql_set, params_set = kw2sql__params(__joint=',', **update_kw)
+        print(condition_kw)
         sql_where, params_where = convert2sqlwhere__params(condition, params, condition_kw_joint=condition_kw_joint, **condition_kw)
         assert sql_where.strip() != '', 'Please make sure that you will update all the items, or please use 1=1'
         cursor = self.conn.cursor()
+        print( sql_set, params_set, params_where )
         cursor.execute(f'update {table} set {sql_set} {sql_where}', params_set+ params_where)
         self.conn.commit()
         return self.conn.total_changes

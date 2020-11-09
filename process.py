@@ -199,7 +199,7 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
     import time
     # with tools.timed(f'len(args_all):{len(args_call_all)}, N_PARALLEL:{n}', print_atend=True):
     tstart = time.time()
-    logger.log_str(f'time:{tools.time_now_str()}, count: {len(args_call_all)}')
+    logger.log_str(f'time:{tools.time_now2str()}, count: {len(args_call_all)}')
     with Pool(n) as p:
          with tqdm(enumerate(p.imap_unordered(start_process, args_call_all)), total=len(args_call_all)) as processbar:
              for ind,info in processbar:
@@ -207,7 +207,7 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
                  info_str = json.dumps(info, indent=4, separators=(',', ':'))
                  logger.log_str(f'process:{ind}/{len(args_call_all)}')
                  logger.log_str( info_str )
-    logger.log_str( f'time:{tools.time_now_str()}, time_cost:{time.time()-tstart} sec, count: {len(args_call_all)}' )
+    logger.log_str(f'time:{tools.time_now2str()}, time_cost:{time.time()-tstart} sec, count: {len(args_call_all)}')
     logger.close()
 
 
@@ -288,7 +288,7 @@ def tes_filelocker():
     import time
     with FileLocker('t/a.locker'):
         with open('t/a.txt','a') as f:
-            f.write(tools.time_now_str()+'\n')
+            f.write(tools.time_now2str() + '\n')
         time.sleep(5)
 
 if __name__ == '__main__':

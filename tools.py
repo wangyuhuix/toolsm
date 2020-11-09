@@ -513,11 +513,18 @@ def equal(a, b, disp=False):
         return res
     return True
 
-def time_now_str(fmt='%m/%d|%H:%M:%S'):
-    return time.strftime(fmt, time.localtime())
+import functools
+def time2str(t, fmt='%Y-%m-%d %H:%M:%S'):
+    if t is None:
+        t = time.localtime()
+    return time.strftime(fmt, t )
 
-def time_now_str_filename():
-    return time.strftime('%m_%d_%H_%M_%S', time.localtime())
+
+time_now2str = functools.partial(time2str, t=None)
+time_str2filename = functools.partial(time2str, fmt ='%Y_%m_%d_%H_%M_%S')
+time_now_str2filename = functools.partial(time_str2filename, t=None)
+
+
 
 
 import shutil

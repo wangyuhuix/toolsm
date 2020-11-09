@@ -322,7 +322,7 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
         tools.makedirs(dirs_full[d_type])
 
     args_json = args.toDict()
-    args_json['__timenow'] = tools.time_now_str()
+    args_json['__timenow'] = tools.time_now2str()
     tools.save_json(os.path.join(args.log_dir, 'args.json'), args_json)
     return args
 
@@ -606,7 +606,7 @@ class Logger(object):
         self.kvs_cache = OrderedDict()  # values this iteration
         self.level = INFO
         if file_basename is None:
-            file_basename = tools.time_now_str_filename()
+            file_basename = tools.time_now_str2filename()
         self.base_name = file_basename
         self.path = path
         tools.print_(f'log:\n{path}\n{file_basename}', color='green')
