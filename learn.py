@@ -248,8 +248,8 @@ class Bundle(Buffer_Base):
         :type kwargs:
         '''
         self.n = n
-        if n is None:
-            warn('Bundle size not limited')
+        # if n is None:
+        #     warn('Bundle size not limited')
         self.ind = 0
         self.set_buffer( _buffer )
         super().__init__(**kwargs)

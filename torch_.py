@@ -7,11 +7,24 @@ import math
 from torch import nn
 import torch.nn.functional as F
 
-def toTensor(a, dtype=torch.float32):
-    return torch.tensor(a,  dtype=dtype, requires_grad=False) #TODO: tmp device=torch.device('cuda'),
+
+__DEFAULT_DEVICE_str = 'cuda'
+def set_default_device_str(device):
+    global __DEFAULT_DEVICE_str
+    __DEFAULT_DEVICE_str = device
+
+def get_default_device():
+    return torch.device( __DEFAULT_DEVICE_str )
+
+
+def toTensor(a, dtype=torch.float32, device=None):
+    global __DEFAULT_DEVICE_str
+    if device is None:
+        device = __DEFAULT_DEVICE_str
+    return torch.tensor(a,  dtype=dtype, device=torch.device(device), requires_grad=False)
 
 def toNumpy(a):
-    return a.numpy() #TODO: tmp .cpu()
+    return a.cpu().numpy() #TODO: tmp
 
 
 # def toTensorSwiss(a, dtype=torch.float32 ):

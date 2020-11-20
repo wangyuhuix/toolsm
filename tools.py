@@ -10,7 +10,7 @@ import time
 
 import time
 
-
+import functools
 
 class Timer():
     def __init__(self):
@@ -139,8 +139,8 @@ def print_( string, **kwargs ):
         string = colorize( string, **kwargs )
     print( string )
 
-def warn_(s):
-    print_( s, color='magenta' )
+print_importantinfo = functools.partial( print_, color='green', bold=True, highlight=True )
+warn_ = functools.partial( print_, color='magenta' )
 
 @contextmanager
 def timed(msg, print_atend=True, stdout=print):
