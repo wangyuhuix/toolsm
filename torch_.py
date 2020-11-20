@@ -8,10 +8,10 @@ from torch import nn
 import torch.nn.functional as F
 
 def toTensor(a, dtype=torch.float32):
-    return torch.tensor(a, device=torch.device('cuda'), dtype=dtype, requires_grad=False)
+    return torch.tensor(a,  dtype=dtype, requires_grad=False) #TODO: tmp device=torch.device('cuda'),
 
 def toNumpy(a):
-    return a.cpu().numpy()
+    return a.numpy() #TODO: tmp .cpu()
 
 
 # def toTensorSwiss(a, dtype=torch.float32 ):

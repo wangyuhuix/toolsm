@@ -211,11 +211,11 @@ class DbHelper:
         if not table:
             table = self.table
         sql_set, params_set = kw2sql__params(__joint=',', **update_kw)
-        print(condition_kw)
+        # print(condition_kw)
         sql_where, params_where = convert2sqlwhere__params(condition, params, condition_kw_joint=condition_kw_joint, **condition_kw)
         assert sql_where.strip() != '', 'Please make sure that you will update all the items, or please use 1=1'
         cursor = self.conn.cursor()
-        print( sql_set, params_set, params_where )
+        # print( sql_set, params_set, params_where )
         cursor.execute(f'update {table} set {sql_set} {sql_where}', params_set+ params_where)
         self.conn.commit()
         return self.conn.total_changes

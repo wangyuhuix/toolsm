@@ -17,7 +17,7 @@ def toXY(data):
 def fn_null(data):
     return data
 
-class __Buffer_Base():
+class Buffer_Base():
     def __init__(self, fn_convert_push=fn_null, fn_convert_get=fn_null):
         self.fn_convert_push = fn_convert_push
         self.fn_convert_get = fn_convert_get
@@ -31,10 +31,12 @@ class __Buffer_Base():
         raise NotImplementedError
 
     def can_sample(self, n_sample):
+        if n_sample is None:
+            n_sample = 1
         return self.length >= n_sample
 
     def sample(self, n_sample):
-        if not self.can_sample(n_sample):
+        if not Buffer_Base.can_sample(self, n_sample):
             warn( f'Buffer contains {self.length}, while sample size is {n_sample} and has been adjusted to be {self.length}' )
         ind_all = np.random.choice(self.length, min( self.length, n_sample ), replace=False)
         return self.fn_convert_get(self.get_data_by_inds(ind_all))
@@ -77,7 +79,7 @@ def _get_fn_stack(item):
 
 
 # TODO: merge Buffer and Bundle as 'save_form' and 'get_form'
-class Buffer(__Buffer_Base):
+class Buffer(Buffer_Base):
     '''
         Each piece of data are considered as a atom.
 
@@ -230,7 +232,7 @@ def bundle_cat(buffer, item, n, ind, is_batch):
 
 from dotmap import DotMap
 from itertools import starmap
-class Bundle(__Buffer_Base):
+class Bundle(Buffer_Base):
     '''
         Item Type:      tuple               dict() (or Dotmap)
         Save form:      (X, Y)              dict(x=X, y=Y)

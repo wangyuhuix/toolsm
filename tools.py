@@ -669,9 +669,152 @@ class OrderedSet(collections.MutableSet):
         return set(self) == set(other)
 
 
+def load_config(filename):
+    import demjson
+    with open(filename, 'r') as f:
+        args_str = f.read()
+        args = demjson.decode(args_str)
+        args = Namespace(args)
+        return args
+
+
+
+
+
+
+
+
+
+
+# def update_dict( dictmain, dictnew ):
+#     for key in dictnew:
+#         if
+
+from dotmap import DotMap
+
+
+import functools
+def update_dict(dictmain, dictnew, onlyif_notexist=False):
+    '''
+    Merge `dictnew` into `dictmain`.
+    We will recursively update if the sub-value of dictnew is also a dict.
+    '''
+    if dictmain is None:
+        dictmain = dictnew
+    else:
+        for key in dictnew:
+            if key not in dictmain.keys():
+                dictmain[key] = copy.copy(dictnew[key])
+            else:# key exist in dictmain
+                if ( isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) and ( isinstance(dictmain[key], dict) or isinstance(dictmain[key], DotMap) ):
+                    dictmain[key] = update_dict( dictmain[key], dictnew[key] )
+                else:
+                    if not onlyif_notexist:
+                        dictmain[key] = copy.copy(dictnew[key])
+    return dictmain
+
+update_dict_onlyif_notexist = functools.partial(update_dict, onlyif_notexist=True  )
+
+def tes_update_dict_ifnotexist():
+    from dotmap  import DotMap
+    dictmain= dict(a=1, b=2)
+    dictnew = dict(a=2,c=3)
+    dictmain = DotMap(dictmain)
+    dictnew = DotMap(dictnew)
+    print( update_dict_onlyif_notexist(dictmain, dictnew  ) )
+    exit()
+
+
+def update_dict_specifed(dictmain, dictnew, onlyif_notexist=False):
+    '''
+        For example:
+        dictmain:{
+                    a:1,
+                    b:1
+                }
+        dictnew: {
+                    __a={
+                        1:{b:2}
+                    }
+                }
+        RETRUN:
+        {
+            a:=1,
+            b:2
+        }
+    '''
+    for key in dictnew.keys():
+        if key.startswith('__'):
+            # This means that the value are customized for the specific values
+            key_interest  = key[2:] #e.g., __cliptype
+            value_interest  = dictmain[key_interest] #Search value from dictmain. e.g., kl_klrollback_constant_withratio
+            if value_interest in dictnew[ key ].keys():
+                dictmain = update_dict_specifed( dictmain, dictnew[ key ][value_interest], onlyif_notexist=onlyif_notexist)
+        else:
+            if key not in dictmain.keys():
+                dictmain[key] = copy.copy(dictnew[key])
+            else:# key exist in dictmain
+                if (isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) \
+                    and key in dictmain.keys() \
+                    and ( isinstance(dictmain[key], dict) or isinstance(dictmain[key], DotMap) ):
+                    dictmain[key] = update_dict_specifed( dictmain[key], dictnew[key], onlyif_notexist=onlyif_notexist )
+                else:
+                    if not onlyif_notexist:
+                        dictmain[key] = copy.copy( dictnew[key])
+    return dictmain
+
+
+update_dict_specifed_onlyif_notexist = functools.partial( update_dict_specifed,  onlyif_notexist=True )
+
+
+
+def update_dict_self_specifed(d, onlyif_notexist=False):
+    # type_ = type(d)
+    dictmain = type(d)()
+    dictspecific = type(d)()
+    for k, v in d.items():
+        if k.startswith('__'):
+            dictspecific[k] = v
+        else:
+            dictmain[k] = v
+    return update_dict_specifed( dictmain, dictspecific, onlyif_notexist=onlyif_notexist )
+
+update_dict_self_specifed_onlyif_notexist = functools.partial( update_dict_self_specifed,  onlyif_notexist=True )
+
+def tes_update_dict_specifed_onlyif_notexist():
+    from dotmap  import DotMap
+    dictmain= dict(a=1, b=2)
+    dictnew = dict(__a={1: dict(b=3,c=4) })
+    dictmain = DotMap(dictmain)
+    dictnew = DotMap(dictnew)
+    print( update_dict_specifed_onlyif_notexist(dictmain, dictnew  ) )
+    exit()
+
+# tes_update_dict_specifed_onlyif_notexist()
+
+# def update_dict_onlynotexist(dictmain, dictnew):
+#     if dictmain is None:
+#         dictmain = dictnew
+#     else:
+#         # dictnew  = copy.copy( dictnew )
+#         # dictnew.update(dictmain)
+#         # dictmain = dictnew
+#         for key in dictnew.keys():
+#             if key not in dictmain.keys():
+#                 dictmain[key] = dictnew[key]
+#             else:
+#                 if (isinstance(dictmain[key], dict) or isinstance(dictmain[key], DotMap)) and (isinstance( dictnew[key], dict ) or isinstance( dictnew[key], DotMap ) ):
+#                     dictmain[key] = update_dict_ifnotexist( dictmain[key], dictnew[key] )
+#     return dictmain
+
+
+
+# tes_update_dict_ifnotexist()
+# exit()
+
 
 if __name__ == '__main__':
-    tes_save_vars()
+    # tes_save_vars()
     exit()
     dirs = get_dirs('/media/d/tt/b', only_sub=False)
     print(dirs)
@@ -727,64 +870,7 @@ if __name__ == '__main__':
 #         return args, path_logger, file_arg
 #
 #
-def load_config(filename):
-    import demjson
-    with open(filename, 'r') as f:
-        args_str = f.read()
-        args = demjson.decode(args_str)
-        args = Namespace(args)
-        return args
 
-
-
-
-
-
-
-
-
-
-# def update_dict( dictmain, dictnew ):
-#     for key in dictnew:
-#         if
-
-from dotmap import DotMap
-
-def update_dict(dictmain, dictnew):
-    for key in dictnew:
-        if ( isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) and key in dictmain.keys() and ( isinstance(dictmain[key], dict) or isinstance(dictmain[key], DotMap) ):
-            dictmain[key] = update_dict( dictmain[key], dictnew[key] )
-        else:
-            dictmain[key] = copy.deepcopy( dictnew[key])
-    return dictmain
-
-def update_dict_specifed(dictmain, dictnew):
-    keys = list(dictnew.keys())
-    for key in keys:
-        if key.startswith('__'):
-            # This means that the value are customized for the specific values
-            key_interest  = key[2:] #e.g., __cliptype
-            value_interest  = dictmain[key_interest] #Search value from dictmain. e.g., kl_klrollback_constant_withratio
-            if value_interest in dictnew[ key ].keys():
-                dictmain = update_dict_specifed( dictmain, dictnew[ key ][value_interest])
-        else:
-            if ( isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) \
-                and key in dictmain.keys() \
-                and ( isinstance(dictmain[key], dict) or isinstance(dictmain[key], DotMap) ):
-                dictmain[key] = update_dict_specifed( dictmain[key], dictnew[key] )
-            else:
-                dictmain[key] = copy.copy( dictnew[key])
-    return dictmain
-
-
-def update_dict_self_specifed(d):
-    # type_ = type(d)
-    dictmain = dict((k,v) for k,v in d.items() if not k.startswith('__'))
-    dictspecific = dict( (k,v) for k,v in d.items() if k.startswith('__') )
-    if isinstance(d, DotMap):
-        dictmain = DotMap(dictmain)
-        dictspecific = DotMap(dictspecific)
-    return update_dict_specifed( dictmain, dictspecific )
 
 '''
 def JSONFile(filepath, *keys):
