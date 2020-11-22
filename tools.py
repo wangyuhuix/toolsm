@@ -13,20 +13,22 @@ import time
 import functools
 
 class Timer():
-    def __init__(self):
+    def __init__(self, verbose=False, reset=True, round_=0):
         self.reset()
         self.time_history = []
+        self.time = functools.partial( self.time, verbose=verbose, reset=reset )
+        self.round = round_
 
     def reset(self):
         self._time = time.time()
 
-    def time(self, verbose=True, msg='Time:', reset=True):
-        interval = time.time() - self._time
+    def time(self, verbose=False, msg='Time:', reset=True):
+        interval = round( time.time() - self._time, self.round )
         if verbose:
             print(f'{msg} {interval} s')
         if reset:
             self.reset()
-        self.time_history.append( interval )
+            self.time_history.append( interval )
         return interval
 
     @property

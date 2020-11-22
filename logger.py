@@ -595,7 +595,7 @@ def make_output_format(fmt, path='', basename='', append=False):
 class Logger(object):
     DEFAULT = None
 
-    def __init__(self, formats=[type.stdout], path='', file_basename=None, file_is_append=False):
+    def __init__(self, formats=[type.stdout], path='', file_basename=None, file_is_append=False, log_time_when_dump=False):
         '''
         formats = 'stdout'
         :param formats: formats, E.G.,'stdout,log,csv,json,tensorflow'
@@ -614,6 +614,9 @@ class Logger(object):
         self.path = path
         # tools.print_(f'log:\n{path}\n{file_basename}', color='green')
         self.output_formats = [make_output_format(f, path, file_basename, append=file_is_append) for f in formats]
+        self.log_time_when_dump = log_time_when_dump
+        if log_time_when_dump:
+            self.timer = tools.Timer(verbose=False, reset=False )
 
     def log(self, *args, **kwargs):
         for arg in args:
@@ -639,6 +642,9 @@ class Logger(object):
         kvs_cache = self.kvs_cache
         if len(kvs_cache) == 0:
             return
+
+        if self.log_time_when_dump:
+            kvs_cache['time'] = self.timer.time()
 
         for fmt in self.output_formats:
             fmt.write_kvs(kvs_cache)

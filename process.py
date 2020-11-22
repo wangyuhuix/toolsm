@@ -157,10 +157,8 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
             info = nvml.nvmlDeviceGetMemoryInfo(h)
             info_all.append( info )
             free_all.append( info.free )
-        else:
-            raise Exception('ALL GPU are used')
 
-        ind_choose = np.argmin( free_all )
+        ind_choose = np.argmax( free_all )
         info = info_all[ind_choose]
         free = int(info.free / (1024 * 1024))
         total = int(info.total / (1024 * 1024))
