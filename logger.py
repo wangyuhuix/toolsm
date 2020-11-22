@@ -117,7 +117,6 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
         parser.add_argument('--log_dir_mode', default='finish_then_exit_else_overwrite', type=str)#finish_then_exit_else_overwrite
         parser.add_argument('--keys_group', default=['clipped_type'], type=ast.literal_eval)
         parser.add_argument('--name_group_ext', default='', type=str)
-        parser.add_argument('--name_run', default="", type=str)
 
     Please rememer to add 'finish' when the program exit!!!!
 
@@ -125,7 +124,7 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
     ARGS: all dict in args will be Dotmap
 
     The final log_path is:
-        root_dir/name_project/dir_type/[key_group=value,]name_group/[key_normalargs=value]name_run
+        root_dir/name_project/dir_type/[key_group=value,]name_group/[key_normalargs=value]
     root_dir: root dir
     name_project: your project
     dir_type: E.G. log, model
@@ -190,7 +189,7 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
     # ----------- get sub directory -----------
 
 
-    key_exclude_all.extend(['log_dir_mode', 'name_group_ext', 'name_group', 'keys_group', 'name_run', 'is_multiprocess'])
+    key_exclude_all.extend(['log_dir_mode', 'name_group_ext', 'name_group', 'keys_group',  'is_multiprocess'])
 
     def get_name_task(key2str=None):
         if key2str is not None:
@@ -215,9 +214,9 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
             if key not in key_exclude_all:
                 name_task += f'{SPLIT}{ key2str_entity(key) }={arg2str(args[key], fn_key=key2str)}'
 
-        key = 'name_run'
-        if args.has_key(key) and not args[key] == '':
-            name_task += f'{SPLIT}{key2str_entity(key)}={arg2str(args[key], fn_key=key2str)}'
+        # key = 'name_run'
+        # if args.has_key(key) and not args[key] == '':
+        #     name_task += f'{SPLIT}{key2str_entity(key)}={arg2str(args[key], fn_key=key2str)}'
 
         name_task = name_task[1:]
         return name_task
@@ -248,7 +247,8 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
     for d_type in dir_type_all:
         assert d_type
         dirs_full[d_type] = get_dir_full(d_type)
-        print(tools.colorize(f'{d_type}_dir:\n{dirs_full[d_type]}', 'green'))
+        # print(tools.colorize(, 'green'))
+        tools.print_importantinfo( f'{d_type}_dir:\n{dirs_full[d_type]}' )
         setattr(args, f'{d_type}_dir', dirs_full[d_type])
     # exit()
     # ----- Move Dirs
@@ -294,13 +294,13 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
                 if np.any([exist_finish_file(d) for d in dirs_full.values()]):
                     flag_move_dir = 'n'
                     print(
-                        f'Exited! Exist file\n{get_finish_file(d)}\nYou can try to rename value of "name_group" or that of "name_run"')
+                        f'Exited! Exist file\n{get_finish_file(d)}\nYou can try to rename value of "name_group"')
                     exit()
                 else:
                     flag_move_dir = 'y'
             elif mode == 'exist_then_exit':
                 flag_move_dir = 'n'
-                print(f'Exited!\nYou can try to rename value of "name_group" or that of "name_run"')
+                print(f'Exited!\nYou can try to rename value of "name_group"')
                 exit()
             else:  # mode='ask'
                 flag_move_dir = input()
@@ -580,6 +580,9 @@ def make_output_format(fmt, path='', basename='', append=False):
     elif fmt == type.tensorflow:
         import tensorflow as tf
         file = tf.summary.FileWriter(logdir=path, filename_suffix=f'.{basename}')
+        # from torch.utils.tensorboard import SummaryWriter
+        # print(path)
+        # file = SummaryWriter( log_dir=path )
     else:
         file_path = os.path.join(path, basename)
         file = open(f"{file_path}.{settings[fmt]['ext']}", mode)
@@ -595,7 +598,7 @@ class Logger(object):
     def __init__(self, formats=[type.stdout], path='', file_basename=None, file_is_append=False):
         '''
         formats = 'stdout'
-        :param formats: formats, E.G.,'stdout,log,csv,json'
+        :param formats: formats, E.G.,'stdout,log,csv,json,tensorflow'
         :type formats:str
         :param file_basename:
         :type file_basename:
@@ -609,7 +612,7 @@ class Logger(object):
             file_basename = tools.time_now_str2filename()
         self.base_name = file_basename
         self.path = path
-        tools.print_(f'log:\n{path}\n{file_basename}', color='green')
+        # tools.print_(f'log:\n{path}\n{file_basename}', color='green')
         self.output_formats = [make_output_format(f, path, file_basename, append=file_is_append) for f in formats]
 
     def log(self, *args, **kwargs):
@@ -665,11 +668,12 @@ class Logger(object):
 
 def tes_logger():
     # dir = "/tmp/a"
-    l = Logger(formats='stdout,csv', path='/tmp/a', file_basename='aa')
+    l = Logger(formats='stdout,csv,tensorflow', path='/tmp/', file_basename='aa')
     # l.width_log = [3,4]
     for i in range(200, 30000, 100):
-        l.log_keyvalues(global_step=i, **{'x/x1': i * 2, 'x/x2': i})
+        l.log_and_dump_keyvalues(global_step=i, **{'x/x1': i * 2, 'x/x2': i})
     # l.dumpkvs(1)
+
     l.close()
     # exit()
 

@@ -26,6 +26,10 @@ class Buffer_Base():
     def __len__(self):
         return self.length
 
+
+    def empty(self):
+        return len(self) == 0
+
     @property
     def length(self):
         raise NotImplementedError
@@ -155,7 +159,6 @@ class Buffer(Buffer_Base):
 
         assert self.weight_is_None == (weight is None)
 
-
         if self.weight_is_None:
             if self.n is None or len(self._buffer) < self.n:
                 self._buffer.append(item)
@@ -165,7 +168,8 @@ class Buffer(Buffer_Base):
                 self._has_fetched[self.ind] = False
 
             if self.n is not None:
-                self.ind = (self.ind + 1) % self.n
+                self.ind = int((self.ind + 1) % self.n)
+                #TODO: repair the bug in rlsm
         else:
 
             assert self.temperature_weight is not None

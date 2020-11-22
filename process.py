@@ -118,7 +118,7 @@ def args_NameAndValues2args_list(args_NameAndValues:dict, args_default:dict={}, 
 #     exit()
 
 
-
+import numpy as np
 def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={}, args_list:list=[], n=1, debug=False, log_kwargs=dict(path='/tmp/', file_basename=None) ):
     '''
     priority: args_default < args_dict_unassembled = args_assembled < args_specifies
@@ -146,6 +146,28 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
         and for env=Humanoid, we use num_timesteps=int(2e7);
     '''
 
+    # --- BEGIN set GPU
+    import pynvml as nvml
+    nvml.nvmlInit()
+    if nvml.nvmlDeviceGetCount() > 1:
+        free_all = [  ]
+        info_all = []
+        for i in range(nvml.nvmlDeviceGetCount()):
+            h = nvml.nvmlDeviceGetHandleByIndex(i)
+            info = nvml.nvmlDeviceGetMemoryInfo(h)
+            info_all.append( info )
+            free_all.append( info.free )
+        else:
+            raise Exception('ALL GPU are used')
+
+        ind_choose = np.argmin( free_all )
+        info = info_all[ind_choose]
+        free = int(info.free / (1024 * 1024))
+        total = int(info.total / (1024 * 1024))
+        tools.print_importantinfo(f'USE GPU {ind_choose} {free}/{total}')
+        os.environ["CUDA_VISIBLE_DEVICES"] = f"{ind_choose}"
+    # --- END GPU
+
     import json
     from toolsm.logger import Logger
     logger = Logger( formats='log', **log_kwargs )
@@ -167,7 +189,7 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
     else:
         python = 'python'
     args_call_base = [python, '-m', script]
-    print( 'call command:' , ' '.join(args_call_base) )
+    # print( 'call command:' , ' '.join(args_call_base) )
 
     for ind, args in enumerate(args_list):
         args_call = args_call_base.copy()
@@ -185,7 +207,8 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
         logger.log_str( json.dumps(args, indent=4, separators=(',', ':')) )
         print( ' '.join(args_call_str) )
         args_call_all.append( dict(args_call=args_call, ind=ind, n_total=len(args_list)))
-    print( f'PROCESS COUNT: {len(args_call_all)}' )
+
+    tools.print_importantinfo( f'PROCESS COUNT: {len(args_call_all)}' )
     if debug:
         exit()
     # exit()
