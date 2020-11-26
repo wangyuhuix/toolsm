@@ -206,7 +206,7 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
         print( ' '.join(args_call_str) )
         args_call_all.append( dict(args_call=args_call, ind=ind, n_total=len(args_list)))
 
-    tools.print_importantinfo( f'PROCESS COUNT: {len(args_call_all)}' )
+    tools.print_importantinfo( f'Jobs Count: {len(args_call_all)}, n_process:{n}' )
     if debug:
         exit()
     # exit()

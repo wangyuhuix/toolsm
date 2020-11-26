@@ -709,7 +709,7 @@ def update_dict(dictmain, dictnew, onlyif_notexist=False):
                 dictmain[key] = copy.copy(dictnew[key])
             else:# key exist in dictmain
                 if ( isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) and ( isinstance(dictmain[key], dict) or isinstance(dictmain[key], DotMap) ):
-                    dictmain[key] = update_dict( dictmain[key], dictnew[key] )
+                    dictmain[key] = update_dict( dictmain[key], dictnew[key], onlyif_notexist=onlyif_notexist )
                 else:
                     if not onlyif_notexist:
                         dictmain[key] = copy.copy(dictnew[key])
