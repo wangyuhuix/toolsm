@@ -736,6 +736,7 @@ def tes_update_dict_ifnotexist():
 
 
 def update_dict_specifed(dictmain, dictnew, onlyif_notexist=False):
+    # NOTE: it will change dictmain
     '''
         The priority:
             If onlyif_notexist=False, dictmain < dictnew
@@ -787,15 +788,16 @@ update_dict_specifed_onlyif_notexist = functools.partial( update_dict_specifed, 
 
 
 def update_dict_self_specifed(d, onlyif_notexist=False):
-    # type_ = type(d)
-    dictmain = type(d)()
+    # NOTE: It will change the d
+    items = list( d.items() )
     dictspecific = type(d)()
-    for k, v in d.items():
+    for k, v in items:
         if k.startswith('__'):
+            del d[k]
             dictspecific[k] = v
-        else:
-            dictmain[k] = v
-    return update_dict_specifed( dictmain, dictspecific, onlyif_notexist=onlyif_notexist )
+        # else:
+        #     dictmain[k] = v
+    return update_dict_specifed( d, dictspecific, onlyif_notexist=onlyif_notexist )
 
 
 
@@ -815,7 +817,9 @@ def tes_update_dict_self_specifed():
                 Adam= dict( lr=0.2 )
             )# only support first-level specification.
     )
-    print( update_dict_self_specifed(dictmain) )
+    update_dict_self_specifed(dictmain)
+    print(dictmain)
+    exit()
 
 
     dictmain= dict(

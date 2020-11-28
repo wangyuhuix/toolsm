@@ -885,11 +885,11 @@ def get_result_grouped(path, depth,
     if path[-1] == '/':
         path_result = path[:-1]
 
-    setting_default = DotMap(
-        groupname_main_setting=DotMap(path_inds=[-2]),
-        groupname_sub_setting=DotMap(path_inds=[-1]),
-    )
-    tools.update_dict_onlyif_notexist( setting, setting_default )
+    # setting_default = DotMap(
+    #     groupname_main_setting=DotMap(path_inds=[-2]),
+    #     groupname_sub_setting=DotMap(path_inds=[-1]),
+    # )
+    # tools.update_dict_onlyif_notexist( setting, setting_default )
     # NOT GENERAL, just for my personal habit...
     filter_ = lambda x: all([(s not in x) for s in [',notusing', ',tmp']])
 
@@ -904,8 +904,8 @@ def get_result_grouped(path, depth,
     # TODO: print groupname_main
     # TODO: print groupname_sub
     def get_groupname(setting__, path):
-        path_split = path.split('/')
         if setting__.has_key('path_inds'):
+            path_split = path.split('/')
             # Use directory name as keys_info_main
             groupname = ','.join([path_split[ind] for ind in setting__.path_inds])
             # NOT GENERAL, just for my personal habit....
@@ -922,6 +922,8 @@ def get_result_grouped(path, depth,
             raise NotImplementedError
 
         return groupname
+    groupname_main_set = set()
+    groupname_sub_set = set()
     for path_result in path_result_all:
         # NOT GENERAL, just for my personal habit...
         if not exist_finish_file(path_result):
@@ -933,14 +935,15 @@ def get_result_grouped(path, depth,
         setting.groupname_main = groupname_main
         tools.update_dict_self_specifed(setting) # update specified groupname_main
         groupname_main = setting.groupname_main
+        groupname_main_set.add( groupname_main )
 
         def get_obj_new():
-            return DotMap(path_all=[])
+            return dict()
 
         if not contain_subtask:
             if groupname_main not in main_2_sub_2_key_2_grouped_result.keys():
                 main_2_sub_2_key_2_grouped_result[groupname_main] = get_obj_new()
-            group = main_2_sub_2_key_2_grouped_result[groupname_main]
+            key_2_grouped_result = main_2_sub_2_key_2_grouped_result[groupname_main]
         else:
             if groupname_main not in main_2_sub_2_key_2_grouped_result.keys():
                 main_2_sub_2_key_2_grouped_result[groupname_main] = dict()
@@ -948,15 +951,14 @@ def get_result_grouped(path, depth,
             setting.groupname_sub = groupname_sub
             tools.update_dict_self_specifed(setting) # update specified groupname_main
             groupname_sub = setting.groupname_sub
+            groupname_sub_set.add( groupname_sub )
             if groupname_sub not in main_2_sub_2_key_2_grouped_result[groupname_main].keys():
                 main_2_sub_2_key_2_grouped_result[groupname_main][groupname_sub] = get_obj_new()
-            group = main_2_sub_2_key_2_grouped_result[groupname_main][groupname_sub]
+            key_2_grouped_result = main_2_sub_2_key_2_grouped_result[groupname_main][groupname_sub]
 
+        # key_2_grouped_result.path_all.append(path_result)
 
-
-        group.path_all.append(path_result)
         key_2_result = setting.fn_loaddata(path=path_result, **setting.fn_loaddata_kwargs.toDict() )#TODO: key_all
-        group['__key_all'] = set()
         if key_2_result is None:
             continue
         for key, result in key_2_result.items():
@@ -965,37 +967,56 @@ def get_result_grouped(path, depth,
             x, y = result.x, result.y
             assert len(x) == len(y), f'{path_result}'
             tools.save_s(f'{path}/len={len(x)}', '')
-            if f'{key}' not in group.keys():
-                group[key] = DotMap(
+            if f'{key}' not in key_2_grouped_result.keys():
+                key_2_grouped_result[key] = DotMap(
                         x_all = [],
                         y_all = [],
+                        path_all = [],
                         len_all = []
                     )
             else:
                 pass
-            group[key][f'x_all'].append(x)
-            group[key][f'y_all'].append(y)
-            group[key][f'len_all'].append(len(x))
+            key_2_grouped_result[key].x_all.append(x)
+            key_2_grouped_result[key].y_all.append(y)
+            key_2_grouped_result[key].len_all.append(len(x))
+            key_2_grouped_result[key].path_all.append( path_result )
 
         process.update(1)
-    # TODO: del value_shor
+
+
+    def print_groupname_all( groupname_all ):
+        d = dict()
+        for groupname in groupname_all:
+            d[groupname] = "DotMap()"
+
+        s = tools.json2str(d, remove_quotes_key=False, remove_brace=False,
+                                         remove_quotes_value=True, indent='\t')
+        s = s.replace('"', "'")
+        print( f'__groupname={s}' )
+
+    print_groupname_all( groupname_main_set )
+    print_groupname_all(groupname_sub_set)
+
+
+
     def del_value_short(obj):
-        len_all = np.array(obj[f'__{key}_length_all'])
+        len_all = np.array(obj.len_all)
         len_max = np.max(len_all)
         ind_remain, = np.where(len_all >= len_max)
-        values = obj[f'{key}_all']
-        obj[f'{key}_all'] = list(map(lambda i_: values[i_], ind_remain))
-        obj[f'{key}_global_steps'] = obj[f'__{key}_global_steps_all'][ind_remain[0]]
-        del obj[f'__{key}_length_all']
-        del obj[f'__{key}_global_steps_all']
+        obj.x_all = list(map(lambda i_: obj.x_all[i_], ind_remain))
+        obj.y_all = list(map(lambda i_: obj.y_all[i_], ind_remain))
+        obj.path_all = list(map(lambda i_: obj.path_all[i_], ind_remain))
+        obj.x = obj.x_all[0]
 
-    for name_main in main_2_sub_2_key_2_grouped_result.keys():
-        group = main_2_sub_2_key_2_grouped_result[name_main]
+
+    for groupname_main in main_2_sub_2_key_2_grouped_result.keys():
         if not contain_subtask:
-            del_value_short(group)
+            for key in main_2_sub_2_key_2_grouped_result[groupname_main].keys():
+                del_value_short(main_2_sub_2_key_2_grouped_result[groupname_main][key])
         else:
-            for name_sub in main_2_sub_2_key_2_grouped_result[name_main].keys():
-                del_value_short(group[name_sub])
+            for groupname_sub in main_2_sub_2_key_2_grouped_result[groupname_main].keys():
+                for key in main_2_sub_2_key_2_grouped_result[groupname_main][groupname_sub].keys():
+                    del_value_short(main_2_sub_2_key_2_grouped_result[groupname_main][groupname_sub][key] )
 
     return main_2_sub_2_key_2_grouped_result
 

@@ -5,13 +5,16 @@ from dotmap import DotMap
 
 
 
-logger.get_result_grouped(
+main_2_sub_2_key_2_grouped_result = logger.get_result_grouped(
   path='/root/d/e/et/DQN/t/initialQ',
   depth=2,
   setting=DotMap(
     groupname_main_setting=DotMap(
       path_inds=[-2]
     ),
+    __groupname_main={
+      'GMQLearning':DotMap(groupname_main='abc')
+    },
     groupname_sub_setting=DotMap(
       json_file='args.json',
       json_keys='env'
@@ -22,9 +25,10 @@ logger.get_result_grouped(
       key_x = 'global_step',
       keys_y=['return_','episode'],
       kwargs_readcsv = dict(sep='\t')
-    )
+    ),
   )
 )
+
 exit()
 
 
