@@ -45,7 +45,10 @@ class Namespace(object):
     def todict(self):
         return self.__dict__
 
-def str2list(s_all):
+
+# TODO: 2020-11-28 11:58:08. I have changed the str.
+def str_split(s):
+    s_all = s
     if isinstance(s_all, str):
         s_all = s_all.split(',')
         s_all = [item.strip() for item in s_all]
@@ -329,11 +332,13 @@ def json2str_file(obj, remove_brace=True, keys_exclude=[], fn_key=None):
 
 
 def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_value=True, remove_brace=True, remove_key=False, keys_include=None, keys_exclude=None, fn_key=None, **jsondumpkwargs):
-
+    # TODO: sub keys for keys_include
     if isinstance(obj, DotMap):
         obj = obj.toDict()
 
-    if isinstance(keys_include, list):
+    if keys_include is not None:
+        if isinstance(keys_include, str):
+            keys_include = [keys_include]
         obj_ori = obj
         obj = dict()
         for key in keys_include:
@@ -341,9 +346,12 @@ def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_v
     else:
         obj = obj.copy()
 
-    if isinstance(keys_exclude, list):
+    if keys_exclude is not None:
+        if isinstance( keys_exclude, str ):
+            keys_exclude = [ keys_exclude ]
         for key in keys_exclude:
             del obj[key]
+
     if remove_key:
         args_str = ''
         for k in obj:
@@ -729,10 +737,16 @@ def tes_update_dict_ifnotexist():
 
 def update_dict_specifed(dictmain, dictnew, onlyif_notexist=False):
     '''
+        The priority:
+            If onlyif_notexist=False, dictmain < dictnew
+            If onlyif_notexist=True, dictmain > dictnew
+        NOTE:
+          It will change the original dictmain
+
         For example:
         dictmain:{
                     a:1,
-                    b:1
+                    b:3
                 }
         dictnew: {
                     __a={
@@ -745,24 +759,26 @@ def update_dict_specifed(dictmain, dictnew, onlyif_notexist=False):
             b:2
         }
     '''
-    for key in dictnew.keys():
-        if key.startswith('__'):
-            # This means that the value are customized for the specific values
-            key_interest  = key[2:] #e.g., __cliptype
-            value_interest  = dictmain[key_interest] #Search value from dictmain. e.g., kl_klrollback_constant_withratio
-            if value_interest in dictnew[ key ].keys():
-                dictmain = update_dict_specifed( dictmain, dictnew[ key ][value_interest], onlyif_notexist=onlyif_notexist)
-        else:
-            if key not in dictmain.keys():
-                dictmain[key] = copy.copy(dictnew[key])
-            else:# key exist in dictmain
-                if (isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) \
-                    and key in dictmain.keys() \
-                    and ( isinstance(dictmain[key], dict) or isinstance(dictmain[key], DotMap) ):
-                    dictmain[key] = update_dict_specifed( dictmain[key], dictnew[key], onlyif_notexist=onlyif_notexist )
-                else:
-                    if not onlyif_notexist:
-                        dictmain[key] = copy.copy( dictnew[key])
+    if dictnew is not None:
+      for key in dictnew.keys():
+          if key.startswith('__'):
+              # This means that the value are customized for the specific values
+              key_interest  = key[2:] #e.g., __cliptype
+              value_interest  = dictmain[key_interest] #Search value from dictmain. e.g., kl_klrollback_constant_withratio
+
+              if value_interest in dictnew[ key ].keys():
+                  dictmain = update_dict_specifed( dictmain, dictnew[ key ][value_interest], onlyif_notexist=onlyif_notexist)
+          else:
+              if key not in dictmain.keys():
+                  dictmain[key] = copy.copy(dictnew[key])
+              else:# key exist in dictmain
+                  if (isinstance(dictnew[key], dict) or isinstance(dictnew[key], DotMap) ) \
+                      and key in dictmain.keys() \
+                      and ( isinstance(dictmain[key], dict) or isinstance(dictmain[key], DotMap) ):
+                      dictmain[key] = update_dict_specifed( dictmain[key], dictnew[key], onlyif_notexist=onlyif_notexist )
+                  else:
+                      if not onlyif_notexist:
+                          dictmain[key] = copy.copy( dictnew[key])
     return dictmain
 
 
@@ -780,6 +796,38 @@ def update_dict_self_specifed(d, onlyif_notexist=False):
         else:
             dictmain[k] = v
     return update_dict_specifed( dictmain, dictspecific, onlyif_notexist=onlyif_notexist )
+
+
+
+def tes_update_dict_self_specifed():
+    from dotmap  import DotMap
+
+    dictmain= dict(
+            agent=dict(
+                name='DQN',
+                __name=dict(
+                    DQN=dict(  )
+                )# Does not support second-level specification. It's little complex to implement.
+            ),
+            optimizer = 'Adam',
+            lr=0.1,
+            __optimizer = dict(
+                Adam= dict( lr=0.2 )
+            )# only support first-level specification.
+    )
+    print( update_dict_self_specifed(dictmain) )
+
+
+    dictmain= dict(
+            optimizer = 'Adam',
+            lr=0.1,
+            __optimizer = dict(
+                Adam= dict( optimizer='Adam1' )
+            )# only support first-level specification.
+    )
+    print( update_dict_self_specifed(dictmain) )
+    exit()
+# tes_update_dict_self_specifed()
 
 update_dict_self_specifed_onlyif_notexist = functools.partial( update_dict_self_specifed,  onlyif_notexist=True )
 

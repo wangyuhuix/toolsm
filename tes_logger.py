@@ -1,6 +1,37 @@
 
 import toolsm.logger as logger
 from dotmap import DotMap
+
+
+
+
+logger.get_result_grouped(
+  path='/root/d/e/et/DQN/t/initialQ',
+  depth=2,
+  setting=DotMap(
+    groupname_main_setting=DotMap(
+      path_inds=[-2]
+    ),
+    groupname_sub_setting=DotMap(
+      json_file='args.json',
+      json_keys='env'
+    ),
+    fn_loaddata=logger._load_csv,
+    fn_loaddata_kwargs = dict(
+      file='process.csv',
+      key_x = 'global_step',
+      keys_y=['return_','episode'],
+      kwargs_readcsv = dict(sep='\t')
+    )
+  )
+)
+exit()
+
+
+
+
+
+
 fn_get_fn_loaddata = logger.get_load_csv_fn
 path_root = '/media/d/e/et/DQN'
 task_all = [
@@ -28,6 +59,7 @@ logger.group_result( task_all,
                     algdir_2_setting=algdir_2_setting
                 )
 
+logger.gro
 
 logger.write_result_grouped_plot(
                     task_all=task_all,
