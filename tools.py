@@ -765,6 +765,8 @@ def update_dict_specifed(dictmain, dictnew, onlyif_notexist=False):
           if key.startswith('__'):
               # This means that the value are customized for the specific values
               key_interest  = key[2:] #e.g., __cliptype
+              if key_interest not in dictmain:
+                  continue
               value_interest  = dictmain[key_interest] #Search value from dictmain. e.g., kl_klrollback_constant_withratio
 
               if value_interest in dictnew[ key ].keys():

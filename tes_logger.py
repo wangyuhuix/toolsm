@@ -3,6 +3,23 @@ import toolsm.logger as logger
 from dotmap import DotMap
 
 
+main_2_sub_2_key_2_grouped_result = logger.group_result_tensorflow_alg_2_env(
+  path='/root/d/e/et/DQN/t/initialQ',
+  depth=2,
+  setting=DotMap(
+    __alg={
+      'GMQLearning':DotMap(alg='abc')
+    },
+    fn_load_result=logger._load_csv,
+    fn_load_result_kwargs = dict(
+      file='process.csv',
+      key_x = 'global_step',
+      keys_y=['return_','episode'],
+      kwargs_readcsv = dict(sep='\t')
+    ),
+  ),
+)
+exit()
 
 
 main_2_sub_2_key_2_grouped_result = logger.get_result_grouped(
@@ -19,8 +36,8 @@ main_2_sub_2_key_2_grouped_result = logger.get_result_grouped(
       json_file='args.json',
       json_keys='env'
     ),
-    fn_loaddata=logger._load_csv,
-    fn_loaddata_kwargs = dict(
+    fn_load_result=logger._load_csv,
+    fn_load_result_kwargs = dict(
       file='process.csv',
       key_x = 'global_step',
       keys_y=['return_','episode'],
