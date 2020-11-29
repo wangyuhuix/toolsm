@@ -3,6 +3,12 @@ import toolsm.logger as logger
 from dotmap import DotMap
 
 
+
+
+def tes_load_tensorflow():
+  key_2_result = logger._load_tensorflow( '/media/d/e/et/Explorer/log/agent={name=DGQN,step_args={n=1,timestep_fit=2000},batch_args={n_traj=1}},tmp/env=Acrobot-v1,seed=0/', '.train', ['eval_score_mean','train_score_last_10_mean'])
+  exit()
+# tes_load_tensorflow()
 def tes_logger():
     # dir = "/tmp/a"
     l = logger.Logger(formats='stdout,csv,tensorflow', path='/tmp/', file_basename='aa')
@@ -14,24 +20,24 @@ def tes_logger():
     # l.dumpkvs(1)
 
     l.close()
-    # exit()
-tes_logger()
-exit()
-main_2_sub_2_key_2_grouped_result = logger.group_result_tensorflow_alg_2_env(
+    exit()
+# tes_logger()
+# exit()
+logger.group_result_tensorflow_alg_2_env(
   path='/root/d/e/et/DQN/t/initialQ',
   depth=2,
   setting=DotMap(
     __alg={
       'GMQLearning':DotMap(alg='abc')
     },
-    fn_load_result=logger._load_csv,
+    fn_load_result=logger._load_tensorflow,
     fn_load_result_kwargs = dict(
-      file='process.csv',
-      key_x = 'global_step',
+      file_suffix='.process',
       keys_y=['return_','episode'],
-      kwargs_readcsv = dict(sep='\t')
     ),
   ),
+  exist_action='overwrite',
+  file_basename='groupxxxx'
 )
 exit()
 

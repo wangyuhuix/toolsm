@@ -425,6 +425,9 @@ class OutputFormat(object):
 
 
 class CsvOuputFormat(OutputFormat):
+    '''
+    TODO:It need to specify the head at the begginng, or else it will have a bug.
+    '''
     def __init__(self, file):
         self.file = file
         self.has_written_header = False
@@ -719,6 +722,7 @@ def group_result_alg_2_env(
                 setting,
                 depth=2,
                 type_='tensorflow',
+                **kwargs
              ):
     '''
     Requring:
@@ -782,7 +786,7 @@ def group_result_alg_2_env(
             path=path,
             setting=setting,
             main_2_sub_2_key_2_result_grouped=main_2_sub_2_key_2_result_grouped,
-            overwrite=True,
+            **kwargs
         )
     elif type_ == 'Generate_Result_For_Plot':
 
@@ -1307,8 +1311,9 @@ def write_result_grouped_tensorflow(*,
                                     path,
                                     setting,
                                     main_2_sub_2_key_2_result_grouped,
-                                    overwrite=False,
                                     name_group='group',
+                                    file_basename='group',
+                                    exist_action='overwrite'#jump
                                     ):
     path = f'{path},{name_group}'
     tools.mkdir(path)
@@ -1327,18 +1332,25 @@ def write_result_grouped_tensorflow(*,
 
         path_main = f"{path}/{groupname_main_show}"
 
-        if osp.exists(path_main):
-            if overwrite:
-                if tools.safe_delete(path_main, confirm=del_first_time):
-                    del_first_time = False
-                else:
-                    overwrite = False  # not ask again next time
-                    continue
-            else:
+        file_all = tools.get_files(path_rel=path_main, filter_=lambda filename_: filename_.endswith(f'.{file_basename}'))
+        if len(file_all) >= 1:
+            if exist_action == 'jump':
                 continue
+            else:
+                os.remove(file_all[0])
 
-        logger = Logger('tensorflow,csv', path=path_main, file_basename='group')
-        logger_log = Logger('log', path=path_main, file_basename='group')
+        # if osp.exists(path_main):
+        #     if overwrite:
+        #         if tools.safe_delete(path_main, confirm=del_first_time):
+        #             del_first_time = False
+        #         else:
+        #             overwrite = False  # not ask again next time
+        #             continue
+        #     else:
+        #         continue
+
+        logger = Logger('tensorflow,csv', path=path_main, file_basename=file_basename)
+        logger_log = Logger('log', path=path_main, file_basename=file_basename)
 
         def log_result(key_2_result_grouped, groupname_sub=''):
             for key_y in key_2_result_grouped.keys():
@@ -1452,6 +1464,25 @@ def get_load_debugs_fn(key_y_all, **kwargs):
 
     return load_debugs_entity
 
+
+def _load_tensorflow( path, file_suffix, keys_y ):
+    file_all = tools.get_files(path_root=path, filter_=lambda filename_: filename_.endswith( file_suffix )  )
+    if len(file_all) > 1:
+        warn( f'Find multiple files in `{path}` ending with {file_suffix}:\n{file_all}' )
+    elif len(file_all) < 1:
+        raise Exception(f'Do not find file in `{path}` ending with {file_suffix}')
+    file = file_all[0]
+    import tensorflow as tf
+    key_2_result = dict()
+    for key in keys_y:
+        key_2_result[key] = DotMap( x=[], y=[] )
+    for event in tf.train.summary_iterator( os.path.join(path, file) ):
+        x = event.step
+        for v in event.summary.value:
+            if v.tag in keys_y:
+                key_2_result[ v.tag ].x.append( x  )
+                key_2_result[ v.tag ].y.append( v.simple_value )
+    return key_2_result
 
 
 
