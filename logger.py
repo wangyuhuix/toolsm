@@ -672,17 +672,6 @@ class Logger(object):
 #     return Logger.DEFAULT.dump_keyvalues()
 
 
-def tes_logger():
-    # dir = "/tmp/a"
-    l = Logger(formats='stdout,csv,tensorflow', path='/tmp/', file_basename='aa')
-    # l.width_log = [3,4]
-    for i in range(200, 30000, 100):
-        l.log_and_dump_keyvalues(global_step=i, **{'x/x1': i * 2, 'x/x2': i})
-    # l.dumpkvs(1)
-
-    l.close()
-    # exit()
-
 
 # if __name__ == "__main__":
 #     tes_logger()
@@ -752,33 +741,41 @@ def group_result_alg_2_env(
     # Note: we split the procedures of plot but merge the result for tensorflow, because we usually need to tune the plot.
 
     if type_ == 'tensorflow':
-        setting.groupname_main_setting = \
-            DotMap(
-                path_inds=[-2]
+
+        def change_name( name_old, name_new ):
+            if setting.has_key(f'__{name_old}'):
+                setting[f'__{name_new}'] = setting.pop(f'__{name_old}')
+                for value in setting[f'__{name_new}']:
+                    item = setting[f'__{name_new}'][value]
+                    if item.has_key(f'{name_old}'):
+                        item[f'{name_new}'] = item.pop(f'{name_old}')
+
+        change_name('algname_setting', 'groupname_main_setting')
+        change_name('envname_setting', 'groupname_sub_setting')
+
+
+        setting_default = dict(
+            groupname_main_setting= \
+                DotMap(
+                    path_inds=[-2]
+                ),
+            groupname_sub_setting = DotMap(
+                json_file='args.json',
+                json_keys='env'
             )
-        setting.groupname_sub_setting = DotMap(
-            json_file='args.json',
-            json_keys='env'
         )
+        for key in ['groupname_main_setting', 'groupname_sub_setting']:
+            if not setting.has_key(key):
+                setting[key] = setting_default[key]
+
         main_2_sub_2_key_2_result_grouped = get_result_grouped(
             path=path,
             setting=setting,
             depth=depth
         )
+        change_name( 'algname', 'groupname_main' )
+        change_name('envname', 'groupname_sub')
 
-        if setting.has_key('__alg'):
-            setting.__groupname_main = setting.pop('__alg')
-            for groupname_main_value in setting.__groupname_main:
-                item = setting.__groupname_main[groupname_main_value]
-                if item.has_key('alg'):
-                    item.groupname_main = item.pop('alg')
-
-        if setting.has_key('__env'):
-            setting.__groupname_sub = setting.pop('__env')
-            for groupname_sub_value in setting.__groupname_sub:
-                item = setting.__groupname_sub[groupname_sub_value]
-                if item.has_key('env'):
-                    item.groupname_sub = item.pop('env')
 
 
         write_result_grouped_tensorflow(

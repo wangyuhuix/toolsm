@@ -3,6 +3,20 @@ import toolsm.logger as logger
 from dotmap import DotMap
 
 
+def tes_logger():
+    # dir = "/tmp/a"
+    l = logger.Logger(formats='stdout,csv,tensorflow', path='/tmp/', file_basename='aa')
+    # l.width_log = [3,4]
+    for i in range(10):
+        l.log_and_dump_keyvalues(a=1,b=2,c=3)
+    for j in range(10):
+        l.log_and_dump_keyvalues(a=1,c=3  )
+    # l.dumpkvs(1)
+
+    l.close()
+    # exit()
+tes_logger()
+exit()
 main_2_sub_2_key_2_grouped_result = logger.group_result_tensorflow_alg_2_env(
   path='/root/d/e/et/DQN/t/initialQ',
   depth=2,
