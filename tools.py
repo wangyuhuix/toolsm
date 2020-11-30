@@ -243,7 +243,10 @@ def _get_files_dirs_entity(path_root, path_rel, filter_, depth, only_last_depth,
         kwargs.update( {f'{vname}': locals()[vname]} )
     files = []
     dirs_ = []
-    lists = os.listdir(os.path.join(path_root, path_rel))
+    path_cat = os.path.join(path_root, path_rel)
+    if not os.path.exists(path_cat):
+        return []
+    lists = os.listdir( path_cat )
     if sort is not None:
         kwargs_sort = {}
         if 'descend' in sort:
@@ -329,24 +332,56 @@ def json2file_old(obj, keys_remove=[], dependencies={}, **kwargs):
 def json2str_file(obj, remove_brace=True, keys_exclude=[], fn_key=None):
     return json2str( obj, separators=(',', '='), remove_quotes_key=True, remove_quotes_value=True, remove_brace=remove_brace, keys_exclude=keys_exclude, fn_key=fn_key )
 
+def filter_dict(d, keys_include):
+    '''
+    :param d:
+    :param keys_include:
+        list of keys
+        The key can be either `key` or the tuple (`key`, `keys_include_sub`)
+    :return:
+    '''
+    if keys_include is None:
+        return
+    elif isinstance(keys_include, str):
+        keys_include = [keys_include]
 
+    d_new = dict()
+    for key in keys_include:
+        if isinstance(key, str):
+            d_new[key] = d[key]
+        elif isinstance(key, tuple):
+            key, keys_include_sub = key
+            filter_dict(d[key], keys_include_sub)
+            d_new[key] = d[key]
+    d.clear()
+    d.update( d_new )
+
+def tes_update_dict_by_key():
+    d = dict(
+        a=1,
+        b=dict(
+            b1=3,
+            b2=dict(
+                b22=3
+            )
+        ),
+    )
+    filter_dict(d, keys_include=['a', ('b', ['b2'])])
+    print(d)
+    exit()
+
+# tes_update_dict_by_key()
 
 def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_value=True, remove_brace=True, remove_key=False, keys_include=None, keys_exclude=None, fn_key=None, **jsondumpkwargs):
     # TODO: sub keys for keys_include
     if isinstance(obj, DotMap):
         obj = obj.toDict()
-
+    obj = obj.copy()
     if keys_include is not None:
-        if isinstance(keys_include, str):
-            keys_include = [keys_include]
-        obj_ori = obj
-        obj = dict()
-        for key in keys_include:
-            obj[key] = obj_ori[key]
-    else:
-        obj = obj.copy()
+        filter_dict(obj, keys_include=keys_include )
 
     if keys_exclude is not None:
+        # TODO: keys_exclude support sub key
         if isinstance( keys_exclude, str ):
             keys_exclude = [ keys_exclude ]
         for key in keys_exclude:

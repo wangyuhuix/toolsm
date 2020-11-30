@@ -745,24 +745,20 @@ def group_result_alg_2_env(
     # Note: we split the procedures of plot but merge the result for tensorflow, because we usually need to tune the plot.
 
     if type_ == 'tensorflow':
-
-        def change_name( name_old, name_new ):
-            if setting.has_key(f'__{name_old}'):
-                setting[f'__{name_new}'] = setting.pop(f'__{name_old}')
-                for value in setting[f'__{name_new}']:
-                    item = setting[f'__{name_new}'][value]
-                    if item.has_key(f'{name_old}'):
-                        item[f'{name_new}'] = item.pop(f'{name_old}')
+        def change_name(name_old, name_new):
+            if setting.has_key(name_old):
+                setting[ name_new ] = setting.pop( name_old )
 
         change_name('algname_setting', 'groupname_main_setting')
         change_name('envname_setting', 'groupname_sub_setting')
 
-
         setting_default = dict(
+            # algname_setting
             groupname_main_setting= \
                 DotMap(
                     path_inds=[-2]
                 ),
+            # envname_setting
             groupname_sub_setting = DotMap(
                 json_file='args.json',
                 json_keys='env'
@@ -777,8 +773,19 @@ def group_result_alg_2_env(
             setting=setting,
             depth=depth
         )
-        change_name( 'algname', 'groupname_main' )
-        change_name('envname', 'groupname_sub')
+
+        # e.g.,
+        # change __algname = dict(alg=XXX) to __groupname_main = dict(groupnamemain=)
+        def change_name__( name_old, name_new ):
+            if setting.has_key(f'__{name_old}'):
+                setting[f'__{name_new}'] = setting.pop(f'__{name_old}')
+                for value in setting[f'__{name_new}']:
+                    item = setting[f'__{name_new}'][value]
+                    if item.has_key(f'{name_old}'):
+                        item[f'{name_new}'] = item.pop(f'{name_old}')
+
+        change_name__( 'algname', 'groupname_main' )
+        change_name__('envname', 'groupname_sub')
 
 
 
@@ -888,7 +895,12 @@ def get_result_grouped(path, setting, depth=2
             # name_main = name_main.replace('Link to ', '')
             # name_main = name_main.replace(',tidy.eval', '')
         elif setting__.has_key('json_file'):
-            info = tools.load_json(f'{path}/{setting__.json_file}')
+            file_json = f'{path}/{setting__.json_file}'
+            try:
+                info = tools.load_json( file_json )
+            except Exception as e:
+                warn( f'Read file_json ERROR! \n {file_json}' )
+                return None
             keys = setting__.json_keys
             groupname = tools.json2str(info, separators=(',', '='),
                                        keys_include=keys,
@@ -902,12 +914,15 @@ def get_result_grouped(path, setting, depth=2
     groupname_sub_set = set()
     for path_result in path_result_all:
         # NOT GENERAL, just for my personal habit...
-        if not exist_finish_file(path_result):
-            tools.warn_(f'NOT FINISH:\n{path}')
-            continue
+        # Just comment it, you can set it in your fn_load_result.
+        # if not exist_finish_file(path_result):
+        #     tools.warn_(f'NOT FINISH:\n{path}')
+        #     continue
 
         setting = copy.deepcopy(setting_origin)
         groupname_main = get_groupname(setting.groupname_main_setting, path_result)
+        if groupname_main is None:
+            continue
         setting.groupname_main = groupname_main
         tools.update_dict_self_specifed(setting)
         groupname_main = setting.groupname_main
@@ -924,6 +939,8 @@ def get_result_grouped(path, setting, depth=2
             if groupname_main not in main_2_sub_2_key_2_result_grouped.keys():
                 main_2_sub_2_key_2_result_grouped[groupname_main] = dict()
             groupname_sub = get_groupname(setting.groupname_sub_setting, path_result)
+            if groupname_sub is None:
+                continue
 
             setting.groupname_sub = groupname_sub
             tools.update_dict_self_specifed(setting)
@@ -943,7 +960,7 @@ def get_result_grouped(path, setting, depth=2
                 continue
             x, y = result.x, result.y
             assert len(x) == len(y), f'{path_result}'
-            tools.save_s(f'{path}/len={len(x)}', '')
+            tools.save_s(f'{path_result}/len={len(x)}', '')
             if f'{key}' not in key_2_grouped_result.keys():
                 key_2_grouped_result[key] = DotMap(
                         x_group = [],
@@ -1331,6 +1348,7 @@ def write_result_grouped_tensorflow(*,
         groupname_main_show = setting.groupname_main
 
         path_main = f"{path}/{groupname_main_show}"
+
 
         file_all = tools.get_files(path_rel=path_main, filter_=lambda filename_: filename_.endswith(f'.{file_basename}'))
         if len(file_all) >= 1:
