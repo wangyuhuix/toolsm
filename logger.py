@@ -1334,10 +1334,15 @@ def write_result_grouped_tensorflow(*,
 
         file_all = tools.get_files(path_rel=path_main, filter_=lambda filename_: filename_.endswith(f'.{file_basename}'))
         if len(file_all) >= 1:
+            tools.warn_(f'Exist file ending with `{file_basename}` in {path_main}.')
             if exist_action == 'jump':
+                tools.warn_('Jumped')
                 continue
             else:
-                os.remove(file_all[0])
+                assert len(file_all) == 1
+                os.remove(file_all[0]) # Do not delete all files, it's dangerous
+                tools.warn_('Deleted')
+
 
         # if osp.exists(path_main):
         #     if overwrite:
