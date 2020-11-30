@@ -366,7 +366,7 @@ def tes_update_dict_by_key():
             )
         ),
     )
-    filter_dict(d, keys_include=['a', ('b', ['b2'])])
+    filter_dict(d, keys_include=[ ('b', ['b2'])])
     print(d)
     exit()
 
@@ -390,7 +390,11 @@ def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_v
     if remove_key:
         args_str = ''
         for k in obj:
-            args_str += f'{obj[k]},'
+            if isinstance( obj[k], dict ) or isinstance(obj[k], DotMap):
+                s_ = json2str( obj[k],   separators=separators, remove_quotes_key=remove_quotes_key, remove_quotes_value=remove_quotes_value, remove_brace=remove_brace, remove_key=remove_key, keys_include=keys_include, keys_exclude=keys_exclude, fn_key=fn_key, **jsondumpkwargs )
+            else:
+                s_ = f'{obj[k]}'
+            args_str += f'{s_},'
 
         if len(args_str)>0:
             args_str = args_str[:-1]
@@ -406,7 +410,8 @@ def json2str(obj, separators=(',', ':'), remove_quotes_key=True, remove_quotes_v
 
         for key in obj.keys():
             if isinstance( obj[key], dict ):
-                obj[key] = json2str(obj[key], separators=separators, remove_quotes_key=remove_quotes_key, remove_quotes_value=remove_quotes_value, remove_brace=remove_brace, remove_key=remove_key, keys_include=keys_include, keys_exclude=keys_exclude, fn_key=fn_key, **jsondumpkwargs)
+                obj[key] = json2str(obj[key], separators=separators, remove_quotes_key=remove_quotes_key, remove_quotes_value=remove_quotes_value, remove_brace=remove_brace, remove_key=remove_key, keys_include=None, keys_exclude=None, fn_key=fn_key, **jsondumpkwargs)
+                # keys_include and keys_exclude are None as I have already handle it at the begining.
 
         args_str = json.dumps(obj, separators=separators, **jsondumpkwargs)
         # print(args_str)

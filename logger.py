@@ -902,9 +902,17 @@ def get_result_grouped(path, setting, depth=2
                 warn( f'Read file_json ERROR! \n {file_json}' )
                 return None
             keys = setting__.json_keys
+            if 'json2str_kwargs' in setting__.keys():
+                json2str_kwargs = setting__['json2str_kwargs']
+            else:
+                json2str_kwargs = None
+            json2str_kwargs_default = dict(
+                remove_quotes_key=True, remove_quotes_value=True, remove_brace=True, remove_key=False
+            )
+            json2str_kwargs = tools.update_dict_onlyif_notexist( json2str_kwargs, json2str_kwargs_default )
             groupname = tools.json2str(info, separators=(',', '='),
                                        keys_include=keys,
-                                       remove_quotes_key=True, remove_quotes_value=True, remove_brace=True, remove_key=True
+                                        **json2str_kwargs
                                        )
         else:
             raise NotImplementedError
