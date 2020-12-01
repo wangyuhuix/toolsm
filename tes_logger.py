@@ -1,8 +1,11 @@
 
 import toolsm.logger as logger
 from dotmap import DotMap
+from toolsm import tools
 
+import toolsm.process as process
 
+process.tes_filelocker()
 
 
 def tes_load_tensorflow():
@@ -16,7 +19,7 @@ def tes_logger():
     for i in range(10):
         l.log_and_dump_keyvalues(a=1,b=2,c=3)
     for j in range(10):
-        l.log_and_dump_keyvalues(a=1,c=3  )
+        l.log_and_dump_keyvalues(a=1,c=3)
     # l.dumpkvs(1)
 
     l.close()

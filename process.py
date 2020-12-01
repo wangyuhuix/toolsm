@@ -1,5 +1,6 @@
-import fcntl
 from . import tools
+import fcntl
+
 
 from multiprocessing import Process, Pool
 import subprocess
@@ -285,11 +286,20 @@ class FileLocker:
         self.__filename = filename
         pass
 
-    def acquire(self):
+    def acquire(self, block):
         self.file =  open(self.__filename, 'w+')
-        tools.print_refresh(f'acquire {self.__filename}')
-        fcntl.flock(self.file.fileno(), fcntl.LOCK_EX)
+        tools.print_refresh(f'acquiring {self.__filename}')
+        if block:
+            fcntl.flock(self.file.fileno(), fcntl.LOCK_EX)
+        else:
+            try:
+                fcntl.flock(self.file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB )
+            except IOError:
+                tools.print_refresh('')
+                # print('FAILED')
+                return False
         tools.print_refresh('')
+        return True
 
     def release(self):
         fcntl.flock(self.file.fileno(), fcntl.LOCK_UN)
@@ -297,7 +307,7 @@ class FileLocker:
 
     def __enter__(self):
         # print(f'acquire file locker {self.__filename}')
-        self.acquire()
+        self.acquire(block=False)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # print(f'release file locker {self.__filename}')
@@ -307,10 +317,13 @@ def tes_filelocker():
 
     from . import tools
     import time
-    with FileLocker('t/a.locker'):
-        with open('t/a.txt','a') as f:
-            f.write(tools.time_now2str() + '\n')
-        time.sleep(5)
+    # tools.save_s('/tmp/a.locker', '')
+    a = FileLocker('/tmp/a.locker')
+    a.acquire(block=False)
+    print(tools.time_now2str() + '\n')
+    time.sleep(5)
+    exit()
+
 
 if __name__ == '__main__':
     tes_run_script_parallel()
