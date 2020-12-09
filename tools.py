@@ -719,18 +719,19 @@ class OrderedSet(collections.MutableSet):
         return set(self) == set(other)
 
 
-def load_config(filename):
-    import demjson
-    with open(filename, 'r') as f:
-        args_str = f.read()
-        args = demjson.decode(args_str)
-        args = Namespace(args)
-        return args
+# def load_config(filename):
+#     import demjson
+#     with open(filename, 'r') as f:
+#         args_str = f.read()
+#         args = demjson.decode(args_str)
+#         args = Namespace(args)
+#         return args
 
 
 
 
-
+def tes_loadconfig():
+    a = load_config('')
 
 
 

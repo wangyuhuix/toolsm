@@ -5,7 +5,7 @@ from toolsm import tools
 
 import toolsm.process as process
 
-process.tes_filelocker()
+# process.tes_filelocker()
 
 
 def tes_load_tensorflow():
@@ -14,17 +14,17 @@ def tes_load_tensorflow():
 # tes_load_tensorflow()
 def tes_logger():
     # dir = "/tmp/a"
-    l = logger.Logger(formats='stdout,csv,tensorflow', path='/tmp/', file_basename='aa')
+    l = logger.Logger(formats='stdout,csv,tensorflow', path='/tmp/a', file_basename='aa')
     # l.width_log = [3,4]
-    for i in range(10):
-        l.log_and_dump_keyvalues(a=1,b=2,c=3)
+    for j in range(10,10+20):
+        l.log_and_dump_keyvalues(a=1, global_step=j)
     for j in range(10):
-        l.log_and_dump_keyvalues(a=1,c=3)
+        l.log_and_dump_keyvalues(a=2, global_step=j)
     # l.dumpkvs(1)
 
     l.close()
     exit()
-# tes_logger()
+tes_logger()
 # exit()
 logger.group_result_tensorflow_alg_2_env(
   path='/root/d/e/et/DQN/t/initialQ',

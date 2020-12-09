@@ -111,11 +111,12 @@ def __split_long_filename(name):
 
 
 # TODO: when the dir is running by other thread, we should also exited.
-def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, root_dir=''):
+def prepare_dirs(args, root_dir=''):
     '''
     Please add the following keys to the argument:
         parser.add_argument('--log_dir_mode', default='finish_then_exit_else_overwrite', type=str)#finish_then_exit_else_overwrite
-        parser.add_argument('--keys_group', default=['clipped_type'], type=ast.literal_eval)
+        parser.add_argument('--keys_group', default=[''], type=ast.literal_eval)
+        parser.add_argument('--keys_subgroup', default=[''], type=ast.literal_eval)
         parser.add_argument('--name_group_ext', default='', type=str)
 
     Please rememer to add 'finish' when the program exit!!!!
@@ -132,6 +133,12 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
 
     New version: parser.add_argument('--log_dir_mode', default='', type=str) #append, overwrite, finish_then_exit_else_overwrite, exist_then_exit
     '''
+    # This is from the old version, but I think it is too complex, so I remove it from the interface.
+    # TODO: the code may need to be simplified
+    key_first = None
+    key_exclude_all = None
+    dir_type_all = None
+
     if key_exclude_all is None:
         key_exclude_all = []
 
@@ -191,7 +198,7 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
 
     key_exclude_all.extend(['log_dir_mode', 'name_group_ext', 'name_group', 'keys_group',  'is_multiprocess'])
 
-    def get_name_task(key2str=None):
+    def get_name_subgroup(key2str=None):
         if key2str is not None:
             key2str_entity = key2str
         else:
@@ -201,35 +208,35 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
         if key_first is not None and key_first not in key_exclude_all:
             key_exclude_all.append(key_first)
             key = key_first
-            name_task = f'{SPLIT}{key2str_entity(key)}={arg2str(args[key], fn_key=key2str )}'
+            name_subgroup = f'{SPLIT}{key2str_entity(key)}={arg2str(args[key], fn_key=key2str )}'
 
             key_exclude_all.append(key_first)
 
         else:
             # key_first = list(set(args.keys()).difference(set(keys_exclude)))[0]
-            name_task = f''
+            name_subgroup = f''
 
         # --- add keys common
-        for key in args.keys():
+        for key in args.keys_subgroup:
             if key not in key_exclude_all:
-                name_task += f'{SPLIT}{ key2str_entity(key) }={arg2str(args[key], fn_key=key2str)}'
+                name_subgroup += f'{SPLIT}{ key2str_entity(key) }={arg2str(args[key], fn_key=key2str)}'
 
         # key = 'name_run'
         # if args.has_key(key) and not args[key] == '':
-        #     name_task += f'{SPLIT}{key2str_entity(key)}={arg2str(args[key], fn_key=key2str)}'
+        #     name_subgroup += f'{SPLIT}{key2str_entity(key)}={arg2str(args[key], fn_key=key2str)}'
 
-        name_task = name_task[1:]
-        return name_task
+        name_subgroup = name_subgroup[1:]
+        return name_subgroup
 
-    name_task = get_name_task()
+    name_subgroup = get_name_subgroup()
 
     for length in [1]:
-        if len(name_task) > 256:
-            name_task = get_name_task(__get_fn_trucate_s(length))
+        if len(name_subgroup) > 256:
+            name_subgroup = get_name_subgroup(__get_fn_trucate_s(length))
         else:
             break
-    if len(name_task) > 256:
-        name_task = __split_long_filename(name_task)
+    if len(name_subgroup) > 256:
+        name_subgroup = __split_long_filename(name_subgroup)
 
 
     # ----------------- prepare directory ----------
@@ -240,7 +247,7 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
         if print_dirtype:
             paths.append(d_type)
 
-        paths.extend([args.name_group, f'{name_task}{suffix}'])
+        paths.extend([args.name_group, f'{name_subgroup}{suffix}'])
         return os.path.join(*paths)
 
     dirs_full = dict()
@@ -259,7 +266,7 @@ def prepare_dirs(args, key_first=None, key_exclude_all=None, dir_type_all=None, 
             EXIST_dir = True
     if EXIST_dir:  # 如果"目标文件夹存在且不为空",则（根据要求决定）是否将其转移
         # print(
-        #     f"Exsits sub directory: {name_task} in {root_dir} \nMove to discard(y or n)?",
+        #     f"Exsits sub directory: {name_subgroup} in {root_dir} \nMove to discard(y or n)?",
         #     end='')
         # if force_write > 0:
         #     cmd = 'y'
@@ -370,6 +377,7 @@ def truncate(s, width_max):
 
 
 def fmt_item(x, width, width_max=None):
+    
     if isinstance(x, np.ndarray):
         assert x.ndim == 0
         x = x.item()
