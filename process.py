@@ -120,7 +120,7 @@ def args_NameAndValues2args_list(args_NameAndValues:dict, args_default:dict={}, 
 
 
 import numpy as np
-def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={}, args_list:list=[], n=1, debug=False, log_kwargs=dict(path='/tmp/', file_basename=None) ):
+def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={}, args_list:list=[], n=1, debug=False, log_kwargs=dict(path='/tmp/', file_basename=None), retry_times=1 ):
     '''
     priority: args_default < args_dict_unassembled = args_assembled < args_specifies
     The low priority defined args would be overwritten by high priority defined args
@@ -148,6 +148,8 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
     '''
 
     # --- BEGIN set GPU
+    # TODO: specify GPU
+    # TODO: judge is there bool in args....
     import pynvml as nvml
     nvml.nvmlInit()
     if nvml.nvmlDeviceGetCount() > 1:
@@ -205,7 +207,7 @@ def run_script_parallel(script, args_NameAndValues: dict={}, args_default:dict={
                 args_call_str += [ tools.colorize( str(arg_value) , 'green', bold=True )  ]
         logger.log_str( json.dumps(args, indent=4, separators=(',', ':')) )
         print( ' '.join(args_call_str) )
-        args_call_all.append( dict(args_call=args_call, ind=ind, n_total=len(args_list)))
+        args_call_all.append( dict(args_call=args_call, ind=ind, n_total=len(args_list), retry_times=retry_times ))
 
     tools.print_importantinfo( f'Jobs Count: {len(args_call_all)}, n_process:{n}' )
     if debug:
@@ -246,7 +248,7 @@ def judge_continue(file_path, keys):
 
 
 def start_process(info):
-    args_call, ind, n_total = info['args_call'], info['ind'], info['n_total']
+    args_call, ind, n_total, retry_times = info['args_call'], info['ind'], info['n_total'], info['retry_times']
     # print( tools.colorize( f'Process: {ind+1}/{n_total}', 'blue' ))
     keys_start = ['continue', ]
     continue_ = judge_continue(file_path=os.path.join(os.getcwd()), keys=keys_start)
@@ -256,7 +258,7 @@ def start_process(info):
     import time
     time_start = time.time()
     err_msgs = []
-    for i in range(2):
+    for i in range(retry_times):
         try:
             subprocess.check_call(args_call)
             break

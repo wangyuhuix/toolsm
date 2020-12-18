@@ -167,25 +167,26 @@ def timed(msg, print_atend=True, stdout=print):
         stdout( msg )
 
 
-def arr2meshgrid(arr, dim):
+def points_2_meshgrid(arr, dim):
     '''
     把一个单独的arr转换成维度为dim的meshgrid
     Example: ARGS: arr=[1,2], dim=2 . RETURN: [1,1],[1,2],[2,1],[2,2]
     Example: ARGS: arr=[1,2,3], dim=3 . RETURN: [1,1,1],[1,1,2],[1,1,3]...
     '''
     meshgrids = [arr for i in range(dim)]
-    return multiarr2meshgrid(meshgrids)
+    return points_each_dim_2_meshgrid(meshgrids)
 
 
-def multiarr2meshgrid(arrs):
+def points_each_dim_2_meshgrid(arrs):
     '''
-    把多个arr转换成维度为len(arrs)的meshgird
-    Example: ARGS: arrs=([1,2],[8,9]) . RETURN: [1,8],[1,9],[2,8],[2,9]
+    INPUT: the points of each dim, e.g. ([1,2],[8,9])
+    Example: ARGS:  .
+    RETURN: [1,8],[1,9],[2,8],[2,9]
     '''
-    arr = np.meshgrid(*arrs)
-    arr = [i.reshape(-1, 1) for i in arr]
-    arr = np.concatenate(arr, axis=1)
-    return arr
+    arr_meshgrid = np.meshgrid(*arrs)
+    arr_batch = [i.reshape(-1, 1) for i in arr_meshgrid]
+    arr_batch = np.concatenate(arr_batch, axis=1)
+    return arr_meshgrid, arr_batch
 
 
 
