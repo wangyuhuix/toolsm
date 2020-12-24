@@ -142,7 +142,10 @@ class FullyConnected_NN(nn.Module):
             setattr(self, f'fc_{ind_layer}', fc )
             fc_all.append( fc )
         self.fc_all = fc_all
-        self.ac_fn = ac_fn
+        if not isinstance(ac_fn, list):
+            ac_fn = [ac_fn] * ( len(fc_all) -1 )
+        assert len(ac_fn) == len(fc_all) -1, f'{len(ac_fn)}, {len(fc_all)-1 }'
+        self.ac_fn_all = ac_fn
 
         if v_initial is not None:
             ind_all_lastlayer = None
@@ -179,8 +182,8 @@ class FullyConnected_NN(nn.Module):
 
 
     def forward(self, x):
-        for fc in self.fc_all[:-1]:
-            x = self.ac_fn( fc(x) )
+        for ind, fc in enumerate(self.fc_all[:-1]):
+            x = self.ac_fn_all[ind]( fc(x) )
         x = self.fc_all[-1](x)
         return x
 
