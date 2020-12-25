@@ -284,14 +284,17 @@ def tes_run_script_parallel():
 
 
 class FileLocker:
+    '''
+    Note! When the variable is released, then the lock will be released.
+    '''
     def __init__(self, filename):
         self.__filename = filename
         pass
 
-    def acquire(self, block):
+    def acquire(self, wait):
         self.file =  open(self.__filename, 'w+')
         tools.print_refresh(f'acquiring {self.__filename}')
-        if block:
+        if wait:
             fcntl.flock(self.file.fileno(), fcntl.LOCK_EX)
         else:
             try:
@@ -321,11 +324,23 @@ def tes_filelocker():
     import time
     # tools.save_s('/tmp/a.locker', '')
     a = FileLocker('/tmp/a.locker')
-    a.acquire(block=False)
+    if a.acquire(wait=False):
+        print('success')
     print(tools.time_now2str() + '\n')
-    time.sleep(5)
-    exit()
+    time.sleep(2)
+    return a
 
+# def tes_filelocker2():
+#
+#     from . import tools
+#     import time
+#     # tools.save_s('/tmp/a.locker', '')
+#     a = FileLocker('/tmp/a.locker')
+#     if a.acquire(wait=False):
+#         print('success')
+#     print(tools.time_now2str() + '\n')
+#     time.sleep(5)
+#     exit()
 
 if __name__ == '__main__':
     tes_run_script_parallel()

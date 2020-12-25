@@ -264,6 +264,17 @@ def prepare_dirs(args, root_dir=''):
         if osp.exists(d) and bool(os.listdir(d)):
             print(f'Exist directory\n{d}\n')
             EXIST_dir = True
+
+    def create_locker():
+        if not args.has_key('__locker'):
+            dir_t = list(dirs_full.values())[0]
+            from toolsm.process import FileLocker
+            locker = FileLocker( f'{dir_t}/.locker' )
+            if not locker.acquire(wait=False):
+                tools.print_importantinfo('Some other process are running. Exited!')
+                exit()
+            args['__locker'] = locker # We should make sure that the locker is not deleted
+
     if EXIST_dir:  # 如果"目标文件夹存在且不为空",则（根据要求决定）是否将其转移
         # print(
         #     f"Exsits sub directory: {name_subgroup} in {root_dir} \nMove to discard(y or n)?",
@@ -275,6 +286,8 @@ def prepare_dirs(args, root_dir=''):
         #     exit()
         # else:
         #     cmd = input()
+
+        create_locker()
         flag_move_dir = 'y'
         if flag_move_dir == 'y':
             for i in itertools.count():
@@ -315,6 +328,8 @@ def prepare_dirs(args, root_dir=''):
             if flag_move_dir == 'y' \
                     and \
                     np.all(tools.check_safe_path(dirs_full[d_type], confirm=False) for d_type in dir_type_all):
+                args['__locker'].release()
+                del args['__locker']
                 import shutil
                 for d_type in dir_type_all:
                     if osp.exists(dirs_full[d_type]):
@@ -327,8 +342,10 @@ def prepare_dirs(args, root_dir=''):
 
     for d_type in dir_type_all:
         tools.makedirs(dirs_full[d_type])
+    create_locker()
 
     args_json = args.toDict()
+    del args_json['__locker']
     args_json['__timenow'] = tools.time_now2str()
     tools.save_json(os.path.join(args.log_dir, 'args.json'), args_json)
     return args

@@ -5,7 +5,9 @@ from toolsm import tools
 
 import toolsm.process as process
 
-# process.tes_filelocker()
+a = process.tes_filelocker()
+c = process.tes_filelocker()
+exit()
 
 
 def tes_load_tensorflow():
